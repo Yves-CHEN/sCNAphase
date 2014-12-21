@@ -1,0 +1,9 @@
+Package: cnProfile
+Type: Package
+Title: Esitmate tumor CN profile and tumor cellularity.
+Version: 0.1
+Date: 2014-08-22
+Author: Wenhan CHEN
+Maintainer: Wenhan <wenhan.chen@uq.net.au>
+Description: Esitmate tumor CN profile and tumor cellularity.
+License: GPL-2

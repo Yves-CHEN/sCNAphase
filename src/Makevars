@@ -1,0 +1,4 @@
+PKG_CFLAGS = -I/home/wenhan.chen/utils/nlopt_2.4.2/include  -DUSEDOUBLE -g3
+PKG_CXXFLAGS = -I/home/wenhan.chen/utils/nlopt_2.4.2/include -I/home/wenhan.chen/.boost/boost_1_56_0  -DUSEDOUBLE -g3
+PKG_LIBS=-lnlopt -L/home/wenhan.chen/utils/nlopt_2.4.2/lib/  -L/home/wenhan.chen/.htslib/lib/ -lhts
+PKG_CPPFLAGS= -g3
