@@ -517,7 +517,7 @@ inferStates  <-  function (anaName, preprocess, chrID, runHMM = T, method = "Bau
         #DOA_range = c( 1.5, 2, 2.5)
         #DOA_range = c(0.9999999, 1.50000001)
         #DOA_range = c(1.4000001, 2.0000001, 2.50000001)
-        DOA_range = c(0.800001, 1.4000001, 2.0000001, 2.50000001)
+        DOA_range = c(0.500001, 1.4000001, 2.0000001, 2.60000001, 3.4)
 
         allRes = list()
 

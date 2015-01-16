@@ -275,8 +275,8 @@ extern "C"
                                               alpha, beta, faster, *print_info);
             Rprintf("@ log_lik = %f when tc = %f, ratio = %f, del = %f\n", 
                     log_lik, cellularity_iter, *DOA, deletion);
-            // two successive run changes < 0.02
-            if(fabs(log_lik - *_log_lik) < 0.02)
+            // two successive run changes < 0.5
+            if(fabs(log_lik - *_log_lik) < 0.5)
             {
                 *_log_lik = log_lik;
                 Rprintf("@ two successive run changes < 0.02 \n");
