@@ -90,12 +90,10 @@ extern "C"
     double targetFun_stub(unsigned n, const double* initPara, double *grad, void *op )
     {
         ObjectiveFunc* theOp  = (ObjectiveFunc*) (op);
-        printf("[notice] pos initPara: %f \n", (theOp->initParameters[0]));
-        printf("[notice] pos initPara: %f \n", (theOp->initParameters[1]));
-
-
-        printf("[notice] initPara: %f \n", initPara[0]);
-        printf("[notice] initPara: %f \n", initPara[1]);
+//        printf("[notice] pos initPara: %f \n", (theOp->initParameters[0]));
+//        printf("[notice] pos initPara: %f \n", (theOp->initParameters[1]));
+//        printf("[notice] initPara: %f \n", initPara[0]);
+//        printf("[notice] initPara: %f \n", initPara[1]);
         return theOp->objective(initPara);
     }
     double targetFun(unsigned n, const double* initPara, double *grad, void *op )
@@ -136,8 +134,6 @@ public :
         double  objVal = 0;
         ObjectiveFunc* theFunc = (ObjectiveFunc*) targetF;
         /// dirty way of converting vector to double* array.
-
-        printf("[notice] pos initPara: %f \n", (theFunc->initParameters[0]));
         double* paras = &(theFunc->initParameters[0]);
 
         printf("[notice] initPara: %f \n", paras[0]);

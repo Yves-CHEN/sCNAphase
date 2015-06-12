@@ -1,7 +1,7 @@
 /************************************************************************
  *  Author: Wenhan CHEN
  *  Date  : 26 Aug 2014
- *  Last_Modified : 01 Oct 2014 22:14:39
+ *  Last_Modified : 01 Mar 2015 12:37:10
  *  Description: This is for estimation of tumor cellularity given the 
  *    genotypes at every heterozygous loci using maximum likelihood 
  *    funciton. NLOPT package is used for the purpose of optimation.
@@ -15,7 +15,7 @@
 # include <R.h>
 # include <Rmath.h>
 # include <vector>
-# include "global_vars.h"
+//# include "global_vars.h"
 
 using namespace std;
 
@@ -60,7 +60,7 @@ typedef struct {
 //  } IOControl ;
 //
 //
-extern bool ML_VERBAL;
+bool ML_VERBAL = false;
 
 /* -------------------------------------------------------
 *

@@ -35,7 +35,6 @@ readVCF  <-  function (prefix, chr)
 
 
 
-
 # -------------------------------------------------------------------
 #  tt specifies type of test: 2 for chiSq, 1 for betabinom
 getPValues <- function(tB, nB, tSum, nSum, thresh, c = 0, RCN = -1, tt=1)
@@ -190,11 +189,10 @@ plotHeatmap  <- function (coord, pvSet, tt=1, font=5, barWidth=1, barThick=1, cS
 #     merge   is to specify how to merge the frequences at SNPi into regions. Don't merge by default.
 #     rm.zero is for remove zero frequency records. Remove zero by default.
 #
-loadFreq  <- function(dir, chrID, merge, doflip=T, rm.zero = T, ana = "p.tumor", nPrefix, tPrefix)
+loadFreq  <- function(dir, chrID, merge, doflip=T, rm.zero = T, ana = "p.tumor", nPrefix, tPrefix,  forceRead  = F)
 {
     #  how to merge regions
     #preprocess = merge
-    forceRead  = T
     countDataF = paste(ana, paste(chrID, "dat", sep="."), sep=".")
     print(countDataF)
     if ( !forceRead & file.exists(countDataF)) 
@@ -214,21 +212,12 @@ loadFreq  <- function(dir, chrID, merge, doflip=T, rm.zero = T, ana = "p.tumor",
         colnames(rules) = c("pos", "flip1")
         save(tAFreq, nAFreq, rules, file=countDataF)
     }
+
     
     # align the rows
     rules [with(rules,  order(pos)), ]
     tAFreq[with(tAFreq, order(pos)), ]
     nAFreq[with(nAFreq, order(pos)), ]
-
-    multiAlt = grepl("[^.]*,", nAFreq$alt)
-
-    # the loci in normal with multiple alternative alleles.
-    multiAlts = c("loci"            =length(nAFreq$NAlt), 
-                  "multiAlt"       =length(nAFreq$NAlt[multiAlt]),
-                  "without ref"     = length(nAFreq$NRef[multiAlt & (nAFreq$NRef==0)])) 
-    #cat("\t# overall SNP loci:\tmulti alt:\twithout ref: \n")
-    #cat(sprintf("\t\t%d\t\t%d\t\t%d\n", length(nAFreq$NAlt),  length(nAFreq$NAlt[multiAlt]), length(nAFreq$NRef[multiAlt & (nAFreq$NRef==0)])))
-
 
     # align ref haps with normal snps
     rules  = rules [rules$pos  %in% nAFreq$pos, ]
@@ -251,15 +240,21 @@ loadFreq  <- function(dir, chrID, merge, doflip=T, rm.zero = T, ana = "p.tumor",
     missingIdx = is.na(tSnps$NAlt)
     naInTumor = c("loci"      = length(tAFreq$NAlt), 
                   "missings"  = length(tAFreq$NAlt[is.na(tSnps$NAlt)])) 
-    tAFreq$NAlt[missingIdx] = 1
-    tAFreq$NRef[missingIdx] = 1
+    tAFreq$NAlt[missingIdx] = 0.5
+    tAFreq$NRef[missingIdx] = 0.5
 
-        # generated phased allelic depth
+    # 1. correct the different number of read mapped to ref than alt.
+    allelicMapability =  0.953
+    nAFreq$NAlt  = (nAFreq$NAlt  / allelicMapability)
+    tAFreq$NAlt  = (tAFreq$NAlt  / allelicMapability)
+
+    # 2. generated phased allelic depth
     if(doflip == T)
     {
         flipSites = rules$flip1 == 1
         nalt  = nAFreq$NAlt [ flipSites]
         nref  = nAFreq$NRef [ flipSites]
+        
         nAFreq$NAlt [flipSites ] = nref  
         nAFreq$NRef [flipSites ] = nalt  
 
@@ -271,15 +266,16 @@ loadFreq  <- function(dir, chrID, merge, doflip=T, rm.zero = T, ana = "p.tumor",
 
 
 
+
     
 
-    # heterogenous alts (normal.alt != tumor.alt)
+    # 3. heterogenous alts (normal.alt != tumor.alt)
     #  1.   alt_normal   alt_tumor    
     #           T              A
     #     This is inconsist
     #
     #  2.   alt_normal   alt_tumor
-    #           T              .
+    #           T              G
     #     Consist, but the num of alt in tumor has to be zero
 
     heteroAlt=c( "loci"        = length(tAFreq$NAlt),
@@ -287,16 +283,14 @@ loadFreq  <- function(dir, chrID, merge, doflip=T, rm.zero = T, ana = "p.tumor",
     #inconsis = ((tAFreq$alt != nAFreq$alt) & (tAFreq$NAlt > 4))
 
     inconsis = ((tAFreq$alt != nAFreq$alt) & (tAFreq$alt != "."))
-    #inconsis = (tAFreq$alt != nAFreq$alt)
-    #tAFreq$NAlt[tAFreq$alt == "." & tAFreq$NAlt < 5] = 0
     if(length(which(inconsis, T)))
     {
         numOfInconsis = length(which(inconsis, T))
-        tAFreq = tAFreq[!inconsis,]
-        nAFreq = nAFreq[!inconsis,]
+     #   tAFreq = tAFreq[!inconsis,]
+     #   nAFreq = nAFreq[!inconsis,]
         heteroAlt = c("loci"        = length(tAFreq$NAlt), 
-                      "heteroAlts"  = numOfInconsis) 
-
+                      "heteroAlts"  = numOfInconsis,
+                      "inconsis"    = inconsis) 
     }
 
     if ( nrow(tAFreq) != nrow(nAFreq) )  stop(sprintf("Frequnencies from two samples are not well aligned : %d!=%d", nrow(tAFreq), nrow(nAFreq)) )
@@ -312,35 +306,33 @@ loadFreq  <- function(dir, chrID, merge, doflip=T, rm.zero = T, ana = "p.tumor",
 #        tAFreq <- mergeByDist(tAFreq[,c("NRef","NAlt")], dist=10000)
 #    }
 
-  
+
+ 
     nB     <- nAFreq$NRef
     nSum   <- nAFreq$NRef + nAFreq$NAlt
+
     tB     <- tAFreq$NRef
     tSum   <- tAFreq$NRef + tAFreq$NAlt
+    names(tSum) = rownames(tAFreq)
+    names(nSum) = rownames(nAFreq)
+    names(tB)   = rownames(tAFreq)
+    names(nB)   = rownames(nAFreq)
 
-    minCount = tSum > 2
+    minCount = nSum > 5
     nB    = nB   [minCount]
     nSum  = nSum [minCount]
     tB    = tB   [minCount]
     tSum  = tSum [minCount]
-
-    names(tSum) = rownames(tAFreq)[minCount]
-    names(nSum) = rownames(nAFreq)[minCount]
-    names(tB)   = rownames(tAFreq)[minCount]
-    names(nB)   = rownames(nAFreq)[minCount]
-
-
-
-#    if (rm.zero == T)
-#    {
-#        nonZero = !((tSum - tB) == 0 | tB  == 0 | (cSum - cB) == 0  | cB == 0 )
-#        tSum    = tSum[nonZero]
-#        nSum    = nSum[nonZero]
-#        tB      = tB  [nonZero]
-#        nB      = nB  [nonZero]
-#    }
+    
+     # 4. mix into 0.1% tumor into the sample, this way all tB > 0.
+    mixit=F
+    if (mixit == T)
+    {
+        tB = tB + 0.001 * nB
+        tSum = tSum + 0.001 * nSum
+    }
 #
-    list(tSum=tSum, nSum=nSum, tB=tB, nB=nB, multiAlts = multiAlts, naInTumor = naInTumor, heteroAlt = heteroAlt) 
+    list(tSum=tSum, nSum=nSum, tB=tB, nB=nB, naInTumor = naInTumor, heteroAlt = heteroAlt) 
 
 }
 
@@ -358,7 +350,6 @@ maxll <- function(tab,genotypes, tc)
        mll   = as.numeric(mll),
        PACKAGE = "cnProfile"
        )
-       
   #  for(k in 1:(length(genotypes)/2))
   #  {
   #      sum = 0
@@ -434,28 +425,63 @@ mergeByDistML<-function(tab,genotypes, tc=1, dist=10000)
 
 }
 
-# calculating the Maximum log-likelihood for different genotypes. Then use ML to determine if there is band switching.
-mergeUsingML <- function(tab, genotypes, tc=1, len=20)
+# calculating the Maximum log-likelihood for different genotypes. Then use ML to determine if there is a state switching.
+mergeUsingML <- function(tab, genotypes, tc=0.99, len=20, maxSeg=1000000)
 {
-    fluctuation = c()  
-    fullLabel   = c()  
+    sumUp  <- function(seg) { 
+
+        #print(tab[seg[1]:seg[2],,drop=F])
+        res1 = apply(tab[seg[1]:seg[2],,drop=F],2,sum)
+        as.integer(res1)
+    }
+    consistency  <- function(seg, doCheck=T)
+    {
+        #print(str(tab[seg[1]:seg[2],,drop=F]))
+
+        #print(str(transform(tab[seg[1]:seg[2],,drop=F], nB=as.integer(nB), nSum=as.integer(nSum),
+                                                #tB=as.integer(tB), tSum=as.integer(tSum)) ))
+        #print(dim(as.integer()))
+        if(doCheck)
+
+        {
+            res1 = maxll(transform(tab[seg[1]:seg[2],,drop=F], nB=as.integer(nB),
+                        nSum=as.integer(nSum),
+                        tB=as.integer(tB),
+                        tSum=as.integer(tSum)),
+                        genotypes,tc)
+        }else
+        {
+            res1 = 0
+        }
+
+
+        #res1 = maxll(as.integer(tab[seg[1]:seg[2],,drop=F]), genotypes, tc)
+        res1
+    }
     rep = ceiling(dim(tab)[1]/len)
     res = matrix(0,nrow = rep,ncol = dim(tab)[2])
-    for(k in 1:rep){
-        start = (k-1)*len +1
-        end = min(start +len,dim(tab)[1])
-        res1 = apply(tab[start:end,,drop=F],2,sum)
-        fluctuation[k] <- maxll(tab[start:end,,drop=F], genotypes, tc) 
-        fullLabel[(k *2 -1):(k * 2)]   <- rownames(tab) [c(start,end)] 
-        res[k,] = res1
-    }
 
-    dimnames(res)[[2]] = dimnames(tab)[[2]]
+    startAt = (c(1:rep)-1)*len +1
+    endAt = startAt +len
+    endAt[length(endAt)] = dim(tab)[1]
+    # filter sparse snp region
+    sel = as.numeric(rownames(tab)[endAt]) - as.numeric(rownames(tab)[startAt]) < maxSeg
+    #tab = tab[sel,,drop=F]
+    startAt = startAt[sel]
+    endAt  =  endAt[sel]
+
+    res=apply(cbind(startAt,endAt),1, sumUp)
+    res=t(res)
+    fluctuation=apply(cbind(startAt,endAt),1, consistency, doCheck = F)
+    fullLabel = cbind(rownames(tab)[startAt], rownames(tab)[endAt])
+    colnames(fullLabel) = c("start", "end")
+
     colnames(res) = colnames(tab)
-    rownames(res) = rownames(tab)[seq(1,length(rownames(tab)), len)]
+    rownames(res) = rownames(tab)[startAt]
 
-    names(fluctuation) <- rownames(tab)[seq(1,length(rownames(tab)), len)]
+    names(fluctuation) <- rownames(tab)[startAt]
     depths = data.frame(res)
+
     list("fluctuation" = fluctuation, 
          "fullLabel"   = fullLabel,
          "depths"       = depths)
@@ -469,8 +495,8 @@ indexing<-function(idx) {as.numeric(names(idx))}
 
     selection =  fluctuation > thresh 
     #selection =  fluctuation > thresh & indexing(fluctuation) > 88000000 & indexing(fluctuation) < 89000000
-    dim(fullLabel) = c(2,length(fullLabel)/2)
-    fullLabel = t(data.frame((fullLabel),row.names=c("start", "end")))
+    #dim(fullLabel) = c(2,length(fullLabel)/2)
+    #fullLabel = t(data.frame((fullLabel),row.names=c("start", "end")))
 
     baf=depths$tB/depths$tSum
     hlRegion =  baf < 0.6 & baf > 0.4
@@ -502,7 +528,7 @@ indexing<-function(idx) {as.numeric(names(idx))}
 
 inferStates  <-  function (anaName, preprocess, chrID, runHMM = T, method = "Baum_Welch", 
                            nB,nSum, tB, tSum,
-                           genotypes, maxiter=30)
+                           genotypes, maxiter=5, g_rcov)
 {
 
     indexing<-function(idx) {as.numeric(names(idx))}
@@ -517,7 +543,8 @@ inferStates  <-  function (anaName, preprocess, chrID, runHMM = T, method = "Bau
         #DOA_range = c( 1.5, 2, 2.5)
         #DOA_range = c(0.9999999, 1.50000001)
         #DOA_range = c(1.4000001, 2.0000001, 2.50000001)
-        DOA_range = c(0.500001, 1.4000001, 2.0000001, 2.60000001, 3.4)
+        #DOA_range = c(0.800001, 1.6, 2.4, 3.4)
+        DOA_range = c(0.4, 3.4)  # 0.4 0.8 1.2 1.6 2.0 2.4 2.8 3.2
 
         allRes = list()
 
@@ -530,17 +557,19 @@ inferStates  <-  function (anaName, preprocess, chrID, runHMM = T, method = "Bau
                 maxRes = segHMM2(rbind(nB,nSum,tB,tSum), 
                          length(genotypes)/2,
                          genotypes, 
-                         maxiter = 100, 
+                         maxiter = maxiter, 
                          DOA_range = c(DOA_range[start], DOA_range[start +1]),
-                         method  = method)
+                         method  = method,
+                         g_rcov=g_rcov)
                 allRes[[start]] = maxRes
             } else{
                 res= segHMM2(rbind(nB,nSum,tB,tSum), 
                          length(genotypes)/2,
                          genotypes, 
-                         maxiter = 100, 
+                         maxiter = maxiter, 
                          DOA_range = c(DOA_range[start], DOA_range[start +1]),
-                         method  = method)
+                         method  = method,
+                         g_rcov=g_rcov)
                 allRes[[start]] = res
 
                 print(maxRes$log.lik)
@@ -574,7 +603,7 @@ inferStates  <-  function (anaName, preprocess, chrID, runHMM = T, method = "Bau
         tmp=lapply(res, func <- function(aRes) {print(aRes)})
 
         label = indexing(nB)
-        save(nB,nSum, tB, tSum, label, maxRes, allRes, file=dataFile)
+        save(nB,nSum, tB, tSum, label, fullLabel, maxRes, allRes, file=dataFile)
     }
     maxRes
 }
@@ -611,7 +640,7 @@ plotPred  <- function(fluctuation, nB,nSum, tB, tSum, genotypes, maxRes, method 
     rdTitle  = paste("Relative read depth", "tc", roundTo(maxRes$tc, 3), "DOA", roundTo(maxRes$DOA,3), sep="--")
     plot(label, tSum, main=rdTitle, xlab="loci", ylab="")
     plot(label, nSum, main=rdTitle, xlab="loci", ylab="")
-    plot(label, tSum/nSum * (sum_di_n * maxRes$DOA/sum_di_t), main=rdTitle, xlab="loci", ylab="", ylim = c(0,4))
+    plot(label, tSum/nSum * (sum_di_n * maxRes$DOA/sum_di_t), main=rdTitle, xlab="loci", ylab="", ylim = c(0,5))
 
     print("rcov : ")
     print((sum_di_n * maxRes$DOA * maxRes$tc + (1 - maxRes$tc) * sum_di_n)/sum_di_t)
@@ -667,7 +696,7 @@ plotPred  <- function(fluctuation, nB,nSum, tB, tSum, genotypes, maxRes, method 
     lines(c(min(label),max(label)),c(1/6, 1/6), col=3,  lty=4)
     lines(c(min(label),max(label)),c(5/6, 5/6), col=3,  lty=4)
 
-    legend("topleft", inset=.05, title="copy number", legend=c(1:7), fill=c(1:7))
+    legend("topleft", inset=.05, title="copy number", legend=c(1:10), fill=c(1:10))
 
 
     #if(exists("breakPoints"))   showBound(breakPoints)
@@ -874,8 +903,12 @@ plotMAF <- function(pos, baf, prange=1, LDdata="", interval=1,  title="test", ce
 #    The sum will be 0, and an error occurs when divide 0.
 #    Fix_tc determine if tc need to be estimated. If T, tc will be used as an initial guess.
 
-segHMM2  <- function(allelicDepth, k, genotypes, tc = 0.5, fix_tc = F, diag.prob = 0.999999, maxiter = 10, eps = 0.0000001, DOA = 1.5, print.info = FALSE, method="Baum_Welch", DOA_range=c(1, 1.5) )
+segHMM2  <- function(allelicDepth, k, genotypes, tc = 0.5, fix_tc = F, diag.prob = 0.999999, maxiter = 10, eps = 0.0000001, DOA = 1.5, print.info = FALSE, method="Baum_Welch", DOA_range=c(1, 1.5), g_rcov=g_rcov )
 {
+    # Start the clock!
+    ptm <- proc.time()
+
+
     numobs = dim(allelicDepth)[2]
     gamma     <- matrix((1 - diag.prob) / (k - 1), k, k)
     diag(gamma) <- diag.prob
@@ -900,10 +933,15 @@ segHMM2  <- function(allelicDepth, k, genotypes, tc = 0.5, fix_tc = F, diag.prob
                DOA=as.double(DOA),
                DOA_range=as.double(DOA_range),
                as.logical(print.info),
+               as.double(g_rcov),
                PACKAGE = "cnProfile"
                )
         res$hidden.states <- res$hidden.states + 1
         res$gamma <- matrix(res$gamma, nr = k)
+
+        # Stop the clock
+        print(proc.time() - ptm)
+
         res
 }
 

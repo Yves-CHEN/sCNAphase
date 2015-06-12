@@ -12,7 +12,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <string>
-#include "sam.h"  
+#include "hts/sam.h"  
 #include "R.h"
   
 class myexception

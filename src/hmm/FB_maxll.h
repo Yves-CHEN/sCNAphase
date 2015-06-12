@@ -1,7 +1,7 @@
 /************************************************************************
  *  Author: Wenhan CHEN
  *  Date  : 22 Sep 2014
- *  Last_Modified : 04 Dec 2014 14:53:49
+ *  Last_Modified : 12 Jun 2015 11:00:51
  *  Description: This includes 
  *    1) Implementation of forward-backward algorithm.
  *    2) NLopt functions for calculation of tc against likelihood of the
@@ -16,13 +16,13 @@
 #include <R.h>
 #include <Rmath.h>
 #include <vector>
-#include "utils.h"
-#include "optimizer.h"
+#include "distribution/utils.h"
+#include "optimization/optimizer.h"
 
 using namespace std;
 
 extern double logProb(unsigned int mi_n , unsigned int  di_n , unsigned int  mi_t , unsigned int  di_t,
-        double c,vector<int> genotype);
+        double c, int genotype[]);
 extern double forward_backward (vector< vector<double> > &yll, 
                               vector< vector<double> > &tpm,
                               double *pi, bool do_filter, double *filter,
@@ -81,7 +81,7 @@ public:
             for(int i = 0; i < k; i++)
             {
 //int cnGain = genotypes[i];
-                vector<int> g_i(2,0);
+                int g_i[2] = {0, 0};
                 g_i[0] = genotypes[i * 2];
                 g_i[1] = genotypes[i * 2 +1];
 
@@ -183,12 +183,20 @@ double forward_backward (vector< vector<double> > &yll,
     // Calculate the observed log-likelihood using scaling variables and
     // a dynamic programming table.
     //
-    //
-
-
-    for(int m = 1, t = T - 2, offs = k; m < T; m++, t--)
+   
+    //for(int m = 1, t = T - 2; m < T; m++, t--)
+//    vector<long double> g_avf(T, 0);
+//    vector<long double> g_avb(T, 0);
+    for(int m = 1; m < T; m++)
     {
+
+        int t = T - m -1;
+        //avf = 0, avb = 0;
         long double avf = 0, avb = 0;
+        long double g_avf = 0, g_avb = 0;
+
+
+#pragma omp parallel for  reduction(+:avf,avb)
         for(int i = 0; i < k; i++)
         {
             long double t_alpha_i_m =0,   t_beta_i_t  =0;
@@ -210,31 +218,45 @@ double forward_backward (vector< vector<double> > &yll,
 //                   }
 
             avf += t_alpha_i_m;
-            if(!faster)
-                avb += t_beta_i_t;
             alpha[i][m] = pArithmetic::myLog(t_alpha_i_m, "alpha[i][m]");
             if(!faster)
+            {
+                avb += t_beta_i_t;
                 beta[i][t]  = pArithmetic::myLog(t_beta_i_t, "beta[i][t]");
+            }
         }
 
-        avf = pArithmetic::myLog(avf, "avf"), avb = pArithmetic::myLog(avb, "avb"), ll = 0;
+
+        g_avf = pArithmetic::myLog(avf, "avf");
+        g_avb = pArithmetic::myLog(avb, "avb");
+
+//    }
+//    for(int m = 1; m < T; m++)
+//    {
+//        int t = T - m -1;
+
+        double b_sum = sum_log_lik;
         for(int i = 0; i < k; i++)
         {
 /// if alpha is a tiny value. e.g. -1.1e100, log(exp(alpha)) will not give a -inf then -1.1e100.
-            alpha[i][m] = alpha[i][m] - avf;
+            alpha[i][m] -= g_avf;
             if(!faster)
-                beta[i][t]  = beta[i][t] - avb;
-
+            {
+                beta[i][t] -= g_avb;
+            }
         }
-
-        double b_sum = sum_log_lik;
-        sum_log_lik += double(avf);
-        if(sum_log_lik - b_sum > 0)
+        
+        sum_log_lik += double(g_avf);
+    
+        if(sum_log_lik - b_sum > 1e-12)
         {
             Rprintf("@ overflowing b_sum = %e\t sumloglik = %e\n", double(b_sum), double(sum_log_lik));
+            Rprintf("@ overflowing avf = %Le\t,  double(avf) = %e %f\n",g_avf, double(g_avf), double(g_avf));
         }
-
     }
+
+
+
     return sum_log_lik;
 
 }

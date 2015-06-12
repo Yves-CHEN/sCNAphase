@@ -6,13 +6,10 @@
 #include <vector>
 #include <map>
 #include <algorithm>
-#include "viterbi_maxll.h"
-#include "FB_maxll.h"
-//#include "utils.h"
-//#include "test2.h"
-#include "bamReader.h"
-#include "mll.h"
-#include "optDel.h"
+#include "hmm/viterbi_maxll.h"
+#include "hmm/FB_maxll.h"
+#include "bamUtils/bamReader.h"
+#include "optimization/mll.h"
 
 using namespace std;
 
@@ -79,7 +76,7 @@ extern "C"
             {
                 for(int i = 0; i < k; i++)
                 {
-                    vector<int> g_i(2,0);
+                    int g_i[2] = {0, 0};
                     g_i[0] = genotypes[i * 2];
                     g_i[1] = genotypes[i * 2 +1];
                     yll[i][m] = logProb(depths[m*4], depths[m*4 +1], depths[m*4 +2], depths[m*4 +3], 
@@ -206,9 +203,10 @@ extern "C"
                              int* genotypes, double* tc, double *TPM, double *pi, int *maxiter,
                              double *eps, double *_log_lik, double *filter,
                              int *hidden_states, double* prob, bool* fix_tc,
-                             double* DOA, double* DOA_range, bool *print_info)
+                             double* DOA, double* DOA_range, bool *print_info, double* globe_rcov)
 
     {
+        printf("[notice me] g_rcov  = %f\n", *globe_rcov);
         // Initialization
         bool    verbal = true;
         int k = *_k, T = *seq_len;
@@ -229,10 +227,13 @@ extern "C"
         double tc_range[2] = {0.00001, 0.99999};
         double del_range[2] = {0.00001, 0.99999};
         double cellularity_iter = (tc_range[0] + tc_range[1]) / 2;
+
+//cellularity_iter = 0.90;
+
         *DOA = (DOA_range[0] + DOA_range[1]) / 2;
         double deletion = del_range[0] ;
 
-        double g_rcov[2] = {0.400, 0.46};
+        double g_rcov[2] = {*globe_rcov - 0.1, *globe_rcov};
 
         while(iter < *maxiter)
         {
@@ -248,11 +249,25 @@ extern "C"
                 for (int j=0; j < k; j++)
                     i_tpm[i][j] = tpm[i][j];
 
-            getTC_Ratio_2(filter, depths, genotypes, i_tpm, pi, &T, &k, 
+            if(iter  == 0)
+            {
+                // global search
+                getTC_Ratio_2(filter, depths, genotypes, i_tpm, pi, &T, &k, 
                     tc_range,   &cellularity_iter,
                     DOA_range,  DOA,
                     del_range,  &deletion,
-                    g_rcov);
+                    g_rcov, 1);
+            }
+            else
+            {
+                //local search
+                getTC_Ratio_2(filter, depths, genotypes, i_tpm, pi, &T, &k, 
+                    tc_range,   &cellularity_iter,
+                    DOA_range,  DOA,
+                    del_range,  &deletion,
+                    g_rcov, 0);
+
+            }
     ///       getDel(filter, depths, genotypes, i_tpm, pi, &T, &k, 
     ///               cellularity_iter,
     ///               *DOA,
@@ -275,11 +290,11 @@ extern "C"
                                               alpha, beta, faster, *print_info);
             Rprintf("@ log_lik = %f when tc = %f, ratio = %f, del = %f\n", 
                     log_lik, cellularity_iter, *DOA, deletion);
-            // two successive run changes < 0.5
-            if(fabs(log_lik - *_log_lik) < 0.5)
+            // two successive run changes < 1
+            if(fabs(log_lik - *_log_lik) < 1)
             {
                 *_log_lik = log_lik;
-                Rprintf("@ two successive run changes < 0.02 \n");
+                Rprintf("@ two successive run changes < 1 \n");
                 break;
             }
             *_log_lik = log_lik;
@@ -291,6 +306,8 @@ extern "C"
             {
                 //double avfb = 0, avksi = 0;
                 long double t_avfb = 0, t_avksi = 0;
+
+#pragma omp parallel for reduction(+:t_avksi,t_avfb)
                 for(int i = 0; i < k; i++)
                 {
                     t_avfb += pArithmetic::myExp(gamma[i][m] = alpha[i][m] + beta[i][m], "t_avfb");
@@ -299,18 +316,28 @@ extern "C"
                             t_avksi += pArithmetic::myExp(ksi[i][j] = alpha[i][m] + tpm[i][j] + yll[j][m + 1]
                                         + beta[j][m + 1], "t_avksi");
                 }
-//                avfb  = pArithmetic::myLog(t_avfb, "avfb");
-//                if (m < T - 1)
-//                    avksi = pArithmetic::myLog(t_avksi, "avksi");
-
+                if(boost::math::isinf(1/t_avksi) && m < T - 1)
+                {
+                    logging("[info] t_avksi == 0 when updating TPM.","error.txt");
+                    exit(0);
+                }
+#pragma omp parallel for
                 for(int i = 0; i < k; i++)
                 {
-                    gamma[i][m] = pArithmetic::myExp(gamma[i][m] , "gamma[i][m]") / t_avfb;
+                    long double t_gamma_i_m = pArithmetic::myExp(gamma[i][m] , "gamma[i][m]") / t_avfb;
+                    //gamma[i][m] = pArithmetic::myExp(gamma[i][m] , "gamma[i][m]") / t_avfb;
                     if (m < T - 1)
                     {
-                        sum_gamma[i] +=  gamma[i][m];
+#pragma omp atomic
+                        sum_gamma[i] +=  t_gamma_i_m;
+
                         for(int j = 0; j < k; j++)
-                            sum_ksi[i][j] += pArithmetic::myExp(ksi[i][j] , "sum_ksi[i][j]") / t_avksi;
+                        {
+                            long double t_sum_ksi_i_j = pArithmetic::myExp(ksi[i][j] , "sum_ksi[i][j]") / t_avksi;
+#pragma omp atomic
+                            sum_ksi[i][j] += t_sum_ksi_i_j;
+                            //sum_ksi[i][j] += pArithmetic::myExp(ksi[i][j] , "sum_ksi[i][j]") / t_avksi;
+                        }
                     }
                 }
             }
@@ -335,13 +362,6 @@ extern "C"
             for(int i = 0; i < k; i++)
                 for(int j = 0; j < k; j++)
                     tpm[i][j] = pArithmetic::myLog(sum_ksi[i][j] / sum_gamma[i], "tpm[i][j]");
-            log_lik = forward_backward(yll, tpm, pi, false, filter,
-                                              alpha, beta, faster, *print_info);
-
-
-            printf("[INFO] Expected value : %f\n", log_lik);
-
-
             Rprintf("--------------------------------------------- \n");
             iter++;
         } // EM iteration
