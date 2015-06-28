@@ -203,10 +203,9 @@ extern "C"
                              int* genotypes, double* tc, double *TPM, double *pi, int *maxiter,
                              double *eps, double *_log_lik, double *filter,
                              int *hidden_states, double* prob, bool* fix_tc,
-                             double* DOA, double* DOA_range, bool *print_info, double* globe_rcov)
+                             double* DOA, double* DOA_range, bool *print_info)
 
     {
-        printf("[notice me] g_rcov  = %f\n", *globe_rcov);
         // Initialization
         bool    verbal = true;
         int k = *_k, T = *seq_len;
@@ -233,7 +232,6 @@ extern "C"
         *DOA = (DOA_range[0] + DOA_range[1]) / 2;
         double deletion = del_range[0] ;
 
-        double g_rcov[2] = {*globe_rcov - 0.1, *globe_rcov};
 
         while(iter < *maxiter)
         {
@@ -255,8 +253,7 @@ extern "C"
                 getTC_Ratio_2(filter, depths, genotypes, i_tpm, pi, &T, &k, 
                     tc_range,   &cellularity_iter,
                     DOA_range,  DOA,
-                    del_range,  &deletion,
-                    g_rcov, 1);
+                    del_range,  &deletion, 1);
             }
             else
             {
@@ -264,8 +261,7 @@ extern "C"
                 getTC_Ratio_2(filter, depths, genotypes, i_tpm, pi, &T, &k, 
                     tc_range,   &cellularity_iter,
                     DOA_range,  DOA,
-                    del_range,  &deletion,
-                    g_rcov, 0);
+                    del_range,  &deletion, 0);
 
             }
     ///       getDel(filter, depths, genotypes, i_tpm, pi, &T, &k, 

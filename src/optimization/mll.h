@@ -1,7 +1,7 @@
 /************************************************************************
  *  Author: Wenhan CHEN
  *  Date  : 27 Oct 2014
- *  Last_Modified : 01 Mar 2015 11:35:51
+ *  Last_Modified : 14 Jun 2015 13:19:19
  *  Description: This is a test for applying same optimazation but on depth.
   *
  *    NLopt package is MIT implementation of a set of optimization algorithms.
@@ -234,7 +234,7 @@ void getTC_Ratio_2(double* filter, int* depth, int* genotypes, double** tpm, dou
         double* tc_range,  double* res_tc,
         double* DOA_range, double* res_DOA,
         double* del_range, double* res_del,
-        double* g_rcov_range, int optMethod)
+        int optMethod)
 {
     /// set the mean value as the initial
     double lb[3] ;             // lower bounds.
@@ -288,12 +288,10 @@ void getTC_Ratio_2(double* filter, int* depth, int* genotypes, double** tpm, dou
         paras.push_back(initDel);
         double  rcov = get_rcov(depth, *numOfObser, initTC, initDOA, initDel);
 
-            printf("rcov_upper - %f, rcov = %f \n", g_rcov_range[1], rcov);
         TFunc ff (depth, genotypes, pi, tpm, filter, numOfObser, numOfStates, paras, initDel);
-    //boundCon con1(depth, *numOfObser, *res_del, g_rcov_range, true );  // lower flag
-        boundCon con2(depth, *numOfObser, *res_del, g_rcov_range, false ); // upper flag
+        //boundCon con2(depth, *numOfObser, *res_del, g_rcov_range, false ); // upper flag
         //ff.constraints.push_back(&con1);
-        ff.constraints.push_back(&con2);
+        //ff.constraints.push_back(&con2);
 
 
         MaxLikelihood mm (&ff, lb, ub, 0);

@@ -185,11 +185,10 @@ plotHeatmap  <- function (coord, pvSet, tt=1, font=5, barWidth=1, barThick=1, cS
 # --------------------------------------------------------------------------------------------------
 #   Read in the frequency data includes the A,B allele frequences in tumor and control.
 #   Parameters :
-#     dir     is the directory where the frequency data are.
 #     merge   is to specify how to merge the frequences at SNPi into regions. Don't merge by default.
 #     rm.zero is for remove zero frequency records. Remove zero by default.
 #
-loadFreq  <- function(dir, chrID, merge, doflip=T, rm.zero = T, ana = "p.tumor", nPrefix, tPrefix,  forceRead  = F)
+loadFreq  <- function(chrID, merge, doflip=T, rm.zero = T, ana = "p.tumor", nPrefix, tPrefix,  forceRead  = F)
 {
     #  how to merge regions
     #preprocess = merge
@@ -528,7 +527,7 @@ indexing<-function(idx) {as.numeric(names(idx))}
 
 inferStates  <-  function (anaName, preprocess, chrID, runHMM = T, method = "Baum_Welch", 
                            nB,nSum, tB, tSum,
-                           genotypes, maxiter=5, g_rcov)
+                           genotypes, maxiter=5, fullLabel = fullLabel)
 {
 
     indexing<-function(idx) {as.numeric(names(idx))}
@@ -539,7 +538,6 @@ inferStates  <-  function (anaName, preprocess, chrID, runHMM = T, method = "Bau
         load(dataFile)
     } else
     {
-        method   =  "Baum_Welch"      #  "viterbi_train" or  "Baum_Welch" by default
         #DOA_range = c( 1.5, 2, 2.5)
         #DOA_range = c(0.9999999, 1.50000001)
         #DOA_range = c(1.4000001, 2.0000001, 2.50000001)
@@ -550,7 +548,6 @@ inferStates  <-  function (anaName, preprocess, chrID, runHMM = T, method = "Bau
 
         for(start in c(1:(length(DOA_range)-1)))
         {
-            print("notice")
             print(c(DOA_range[start], DOA_range[start +1]))
             if(!exists("maxRes"))
             {
@@ -559,8 +556,7 @@ inferStates  <-  function (anaName, preprocess, chrID, runHMM = T, method = "Bau
                          genotypes, 
                          maxiter = maxiter, 
                          DOA_range = c(DOA_range[start], DOA_range[start +1]),
-                         method  = method,
-                         g_rcov=g_rcov)
+                         method  = method)
                 allRes[[start]] = maxRes
             } else{
                 res= segHMM2(rbind(nB,nSum,tB,tSum), 
@@ -568,11 +564,8 @@ inferStates  <-  function (anaName, preprocess, chrID, runHMM = T, method = "Bau
                          genotypes, 
                          maxiter = maxiter, 
                          DOA_range = c(DOA_range[start], DOA_range[start +1]),
-                         method  = method,
-                         g_rcov=g_rcov)
+                         method  = method)
                 allRes[[start]] = res
-
-                print(maxRes$log.lik)
             # Do the inference for different DOA_ranges.
             # If the change is bigger than 1000, accept the better range.
                 if(res$log.lik - maxRes$log.lik  > 1000) maxRes = res
@@ -607,7 +600,7 @@ inferStates  <-  function (anaName, preprocess, chrID, runHMM = T, method = "Bau
     }
     maxRes
 }
-plotPred  <- function(fluctuation, nB,nSum, tB, tSum, genotypes, maxRes, method = "Baum_Welch", len, chrID)
+plotPred  <- function(fluctuation, nB,nSum, tB, tSum, fullLabel, genotypes, maxRes, method = "Baum_Welch", len, chrID)
 {
 
     indexing<-function(idx) {as.numeric(names(idx))}
@@ -903,7 +896,7 @@ plotMAF <- function(pos, baf, prange=1, LDdata="", interval=1,  title="test", ce
 #    The sum will be 0, and an error occurs when divide 0.
 #    Fix_tc determine if tc need to be estimated. If T, tc will be used as an initial guess.
 
-segHMM2  <- function(allelicDepth, k, genotypes, tc = 0.5, fix_tc = F, diag.prob = 0.999999, maxiter = 10, eps = 0.0000001, DOA = 1.5, print.info = FALSE, method="Baum_Welch", DOA_range=c(1, 1.5), g_rcov=g_rcov )
+segHMM2  <- function(allelicDepth, k, genotypes, tc = 0.5, fix_tc = F, diag.prob = 0.999999, maxiter = 10, eps = 0.0000001, DOA = 1.5, print.info = FALSE, method="Baum_Welch", DOA_range=c(1, 1.5))
 {
     # Start the clock!
     ptm <- proc.time()
@@ -949,5 +942,93 @@ segHMM2  <- function(allelicDepth, k, genotypes, tc = 0.5, fix_tc = F, diag.prob
 
 
 
+inferCNA  <- function(anaName, nPrefix, tPrefix, chroms, doPhase = T, forceRead=F, maxCopyNum=11, mlen = 30, maxiter = 5)
+{
+
+    #************************************************************************
+    #          Possible genotypes 
+    #************************************************************************
+    startPos = 0
+    gap      = 100000 # in bps
+    label    = c()
+    breakPoints =  startPos
+    for (AChrID in chroms)
+    {
+        res = loadFreq( ana = anaName,
+                       doflip = doPhase,
+                       AChrID, 
+                       merge="perSite",
+                       nPrefix = nPrefix,
+                       tPrefix = tPrefix,
+                       forceRead = F
+               )
+        tB       = c(tB   ,  res$tB  )
+        nB       = c(nB   ,  res$nB  )
+        tSum     = c(tSum ,  res$tSum)
+        nSum     = c(nSum ,  res$nSum)
+        label    = c(label,  as.numeric(names(res$tB)) + startPos + gap)
+        startPos = max(label)
+        breakPoints = c(breakPoints, startPos)
+
+    }
+    names(tB)   = (label)
+    names(nB)   = (label)  
+    names(tSum) = (label)
+    names(nSum) = (label)
+
+
+    save(tB,nB,tSum,nSum, breakPoints, file=paste(anaName, chrID, ".gw.dat", sep='.'))
+    notNA=!is.na(tB)
+    tB=tB[notNA]
+    tSum=tSum[notNA]
+    nB=nB[notNA]
+    nSum=nSum[notNA]
+    #************************************************************************
+    #          Possible genotypes 
+    #************************************************************************
+    genotypes = genGenotypes(maxCopyNum) # all the possible genotypes with copy number < maxCopyNum
+    genotypes = c(0, 0, genotypes)       # adding doulbe deletion
+
+    #************************************************************************
+    #                 Merging (state shifting detection)
+    #************************************************************************
+    par(cex = 1.2)
+    par(cex.axis = 1)
+    par(cex.lab = 1)
+
+    outfile=paste(doPhase, anaName, chrID, preprocess, ".pdf", sep=".")
+    pdf(file=outfile, width=24, height=6)
+
+    #************************************************************************
+    #                 Merging (state shifting detection)
+    #************************************************************************
+    indexing<-function(idx) {as.numeric(names(idx))}
+    mergedData = mergeUsingML(data.frame(cbind(nB,nSum, tB, tSum)), 
+              genotypes,
+              tc=0.99,
+              len = mlen)  #  Merge the allelic depth and mind the allelic depth consistency.
+
+    fluctuation = mergedData[["fluctuation"]]
+    fullLabel   = mergedData[["fullLabel"]]
+    mergedDepth = mergedData[["depths"]]
+
+    tB   = ceiling(mergedDepth$tB)
+    nB   = ceiling(mergedDepth$nB)
+    tSum = ceiling(mergedDepth$tSum)
+    nSum = ceiling(mergedDepth$nSum)
+    names(tB) = names(fluctuation)
+
+    #************************************************************************
+    #                 CN state prediction 
+    #************************************************************************
+    maxRes = inferStates  (anaName, preprocess, chrID, runHMM = T, method = "Baum_Welch", 
+                           nB,nSum, tB, tSum,
+                           genotypes, maxiter=maxiter, fullLabel = fullLabel)
+
+    cat(paste ("Degree of Amplification : ", maxRes$DOA, sep=":"))
+    cat(paste ("Predict tumor cellularity : ", maxRes$tc, maxRes$log.lik, sep=":"))
+    plotPred (fluctuation, nB,nSum, tB, tSum, fullLabel, genotypes, maxRes, len=mlen, chrID=chrID)
+    dev.off()
+}
 
 
