@@ -1,4 +1,3 @@
-useDynLib(libhts)
 useDynLib(libnlopt)
-useDynLib(cnProfile, maxll_improv, Baum_Welch)
+useDynLib(sCNAphase, maxll_improv, Baum_Welch)
 exportPattern("^[^\\.]")

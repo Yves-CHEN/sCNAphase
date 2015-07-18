@@ -1,7 +1,7 @@
 /************************************************************************
  *  Author: Wenhan CHEN
  *  Date  : 22 Sep 2014
- *  Last_Modified : 19 Jun 2015 00:14:11
+ *  Last_Modified : 10 Jul 2015 15:28:48
  *  Description: This includes 
  *    1) Boost implementation of Binomial_distribution.
  *    2) My implementation of log and exp at the long double precision.
@@ -124,9 +124,6 @@ double logBinomial(unsigned int mi_t , unsigned int di_t, double prob)
 {   
     return  (mi_t * log(prob) + (di_t - mi_t) * log (1-prob) );
 }
-
-/// c for tumor cellularity.
-/// genotype is a vector of 2 values for the number of maternal alleles and paternal alleles.
 double logProb(unsigned int mi_n , unsigned int  di_n , unsigned int  mi_t , unsigned int  di_t,
                 double c, int genotype[])
 {
@@ -134,26 +131,47 @@ double logProb(unsigned int mi_n , unsigned int  di_n , unsigned int  mi_t , uns
     unsigned int y = genotype[1];
     double mix_m = (1-c) * mi_n + c * mi_n * x;  // mixed maternal alleles
     double sum   = (1-c) * di_n + c * mi_n * x + c * (di_n - mi_n) * y;   // all alleles
-    if(sum == 0 )
-    {
-        // not a fitted a binomial, this happens when genotype is {}, and tumor
-        // cellularity is close to 100%. The  number of reads (di_t) are
-        // misaligned reads in this case. Assume the misalign rate is 1/1000.
-        return di_n * log(1/1000);
-    }
-
-    //if(sum == 0) {printf("[error] sum == 0 in logProb \n"); exit(-1);}
+    if(sum == 0) {printf("[error] sum == 0 in logProb \n"); exit(-1);}
     double prob  = mix_m/sum;
     if(prob == 0) {Rprintf("[warning] prob == 0 in logProb. Assigned to 1e-10 \n"); prob = 1e-10;}
-    if(prob == 1) {Rprintf("[warning] prob == 0 in logProb. Assigned to 1e-10 \n"); prob = 1- 1e-10;}
     /// using beta-binomial dist
     //return log_beta_binom (mi_t ,  di_t, mix_m, sum - mix_m);
 
 
     /// using binomial dist
-    return logBinomial_boost (mi_t ,  di_t, prob);
-    //return logBinomial(mi_t ,  di_t, prob);
+    //return logBinomial_boost (mi_t ,  di_t, prob);
+    return logBinomial(mi_t ,  di_t, prob);
 }
+
+/// c for tumor cellularity.
+/// genotype is a vector of 2 values for the number of maternal alleles and paternal alleles.
+// double logProb(unsigned int mi_n , unsigned int  di_n , unsigned int  mi_t , unsigned int  di_t,
+//                 double c, int genotype[])
+// {
+//     unsigned int x = genotype[0];
+//     unsigned int y = genotype[1];
+//     double mix_m = (1-c) * mi_n + c * mi_n * x;  // mixed maternal alleles
+//     double sum   = (1-c) * di_n + c * mi_n * x + c * (di_n - mi_n) * y;   // all alleles
+//     if(sum == 0 )
+//     {
+//         // not a fitted a binomial, this happens when genotype is {}, and tumor
+//         // cellularity is close to 100%. The  number of reads (di_t) are
+//         // misaligned reads in this case. Assume the misalign rate is 1/1000.
+//         return di_n * log(1/1000);
+//     }
+// 
+//     //if(sum == 0) {printf("[error] sum == 0 in logProb \n"); exit(-1);}
+//     double prob  = mix_m/sum;
+//     if(prob == 0) {Rprintf("[warning] prob == 0 in logProb. Assigned to 1e-10 \n"); prob = 1e-10;}
+//     if(prob == 1) {Rprintf("[warning] prob == 0 in logProb. Assigned to 1e-10 \n"); prob = 1- 1e-10;}
+//     /// using beta-binomial dist
+//     //return log_beta_binom (mi_t ,  di_t, mix_m, sum - mix_m);
+// 
+// 
+//     /// using binomial dist
+//     return logBinomial_boost (mi_t ,  di_t, prob);
+//     //return logBinomial(mi_t ,  di_t, prob);
+// }
 double logProb_depth(unsigned int di_n , double  sum_di_n , unsigned int  di_t , double  sum_di_t,
                 double c, double ratio, double cnGain)
 {

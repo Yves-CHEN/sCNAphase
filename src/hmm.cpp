@@ -8,7 +8,7 @@
 #include <algorithm>
 #include "hmm/viterbi_maxll.h"
 #include "hmm/FB_maxll.h"
-#include "bamUtils/bamReader.h"
+//#include "bamUtils/bamReader.h"
 #include "optimization/mll.h"
 
 using namespace std;

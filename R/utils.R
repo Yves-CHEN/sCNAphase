@@ -944,6 +944,12 @@ segHMM2  <- function(allelicDepth, k, genotypes, tc = 0.5, fix_tc = F, diag.prob
 
 inferCNA  <- function(anaName, nPrefix, tPrefix, chroms, doPhase = T, forceRead=F, maxCopyNum=11, mlen = 30, maxiter = 5)
 {
+    preprocess="phased"
+
+    g_rcov = 0.5
+
+
+    chrID = "W"
 
     #************************************************************************
     #          Possible genotypes 
@@ -952,6 +958,10 @@ inferCNA  <- function(anaName, nPrefix, tPrefix, chroms, doPhase = T, forceRead=
     gap      = 100000 # in bps
     label    = c()
     breakPoints =  startPos
+    tB = c()
+    nB = c()
+    tSum = c()
+    nSum = c()
     for (AChrID in chroms)
     {
         res = loadFreq( ana = anaName,

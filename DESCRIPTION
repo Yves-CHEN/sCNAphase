@@ -1,4 +1,4 @@
-Package: cnProfile
+Package: sCNAphase
 Type: Package
 Title: Esitmate tumor CN profile and tumor cellularity.
 Version: 0.1
