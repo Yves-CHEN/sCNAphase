@@ -347,7 +347,7 @@ maxll <- function(tab,genotypes, tc)
        as.double(tc),
        state = as.integer(state),
        mll   = as.numeric(mll),
-       PACKAGE = "cnProfile"
+       PACKAGE = "sCNAphase"
        )
   #  for(k in 1:(length(genotypes)/2))
   #  {
@@ -471,7 +471,7 @@ mergeUsingML <- function(tab, genotypes, tc=0.99, len=20, maxSeg=1000000)
 
     res=apply(cbind(startAt,endAt),1, sumUp)
     res=t(res)
-    fluctuation=apply(cbind(startAt,endAt),1, consistency, doCheck = F)
+    fluctuation=apply(cbind(startAt,endAt),1, consistency, doCheck = T)
     fullLabel = cbind(rownames(tab)[startAt], rownames(tab)[endAt])
     colnames(fullLabel) = c("start", "end")
 
@@ -927,7 +927,7 @@ segHMM2  <- function(allelicDepth, k, genotypes, tc = 0.5, fix_tc = F, diag.prob
                DOA_range=as.double(DOA_range),
                as.logical(print.info),
                as.double(g_rcov),
-               PACKAGE = "cnProfile"
+               PACKAGE = "sCNAphase"
                )
         res$hidden.states <- res$hidden.states + 1
         res$gamma <- matrix(res$gamma, nr = k)
@@ -942,7 +942,7 @@ segHMM2  <- function(allelicDepth, k, genotypes, tc = 0.5, fix_tc = F, diag.prob
 
 
 
-inferCNA  <- function(anaName, nPrefix, tPrefix, chroms, doPhase = T, forceRead=F, maxCopyNum=11, mlen = 30, maxiter = 5)
+inferCNA  <- function(anaName, nPrefix, tPrefix, chroms, doPhase = T, forceRead=F, maxCopyNum=11, mlen = 30, maxiter = 5, doFilter = F)
 {
     preprocess="phased"
 
@@ -1018,6 +1018,12 @@ inferCNA  <- function(anaName, nPrefix, tPrefix, chroms, doPhase = T, forceRead=
               tc=0.99,
               len = mlen)  #  Merge the allelic depth and mind the allelic depth consistency.
 
+
+    if(doFilter == T)
+    {
+        mergedData = filtering (mergedData, -80)
+    }
+
     fluctuation = mergedData[["fluctuation"]]
     fullLabel   = mergedData[["fullLabel"]]
     mergedDepth = mergedData[["depths"]]
@@ -1038,6 +1044,42 @@ inferCNA  <- function(anaName, nPrefix, tPrefix, chroms, doPhase = T, forceRead=
     cat(paste ("Degree of Amplification : ", maxRes$DOA, sep=":"))
     cat(paste ("Predict tumor cellularity : ", maxRes$tc, maxRes$log.lik, sep=":"))
     plotPred (fluctuation, nB,nSum, tB, tSum, fullLabel, genotypes, maxRes, len=mlen, chrID=chrID)
+
+    depths = rbind(nB,nSum,tB,tSum)
+    T = dim(depths)[2]
+
+    prob_RD=rep(0.1, T)
+    prob_AD=rep(0.1, T)
+
+
+    geno = maxRes$genotypes
+    cnStates = maxRes$hidden.states
+cns = geno[maxRes$hidden.states*2-1] +  geno[maxRes$hidden.states*2]
+
+
+    tc = maxRes$tc
+    DOA = maxRes$DOA
+
+    res <- .C("emissionDist_Debug",
+              depths = as.integer(as.vector(depths)),
+               T = as.integer(T),
+                geno = as.integer(geno),
+                cnStates = as.integer(cnStates),
+                tc = as.double(tc),
+                DOA = as.double(DOA), 
+                prob_RD = as.double(prob_RD),
+                prob_AD = as.double(prob_AD),
+                PACKAGE="sCNAphase"   
+                )
+
+    col = rep(1, length(cns))
+    col [cns>8] = 2
+
+    plot(res$prob_AD, pch = 4, col = col)
+    plot(res$prob_RD, pch = 4, col = col)
+
+
+
     dev.off()
 }
 

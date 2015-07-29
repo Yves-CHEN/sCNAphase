@@ -10,6 +10,7 @@
 #include "hmm/FB_maxll.h"
 //#include "bamUtils/bamReader.h"
 #include "optimization/mll.h"
+#include "distribution/utils.h"
 
 using namespace std;
 
@@ -22,7 +23,8 @@ const bool printWarning = false;
     //extern "C" void countReads(char** bamF, char** chrID, int* start, int* windowSize, int* num, int* qcThresh, int* countVec);
  
 extern void maxll (int* tab, int* num_n, int* genotypes, int* num_k,double* cc, int* state, double* max_ll);
-extern void maxl_improv (int* tab, int* num_n, int* genotypes, int* num_k, double* cc, int* state, double* max_ll);
+extern void maxll_improv (int* tab, int* num_n, int* genotypes, int* num_k, double* cc, int* state, double* max_ll);
+extern void emissionDist_Debug(int* depths, int* T, int* genotypes, int* cnStates, double* tc, double* DOA, double* prob_RD, double* prob_AD);
 
 
 

@@ -1,7 +1,7 @@
 /************************************************************************
  *  Author: Wenhan CHEN
  *  Date  : 22 Sep 2014
- *  Last_Modified : 10 Jul 2015 15:28:48
+ *  Last_Modified : 28 Jul 2015 17:15:30
  *  Description: This includes 
  *    1) Boost implementation of Binomial_distribution.
  *    2) My implementation of log and exp at the long double precision.
@@ -95,7 +95,7 @@ const double pArithmetic::Inf    = exp(log(1e-310)) ;
 // {
 //     return (a+b-2) * log(0.5) - log(boost::math::ibeta_derivative(a,b,0.5));
 // }
-
+int g_indx = 0;
 double log_beta(long double a, long double b)
 {
     double p0 = a / (a+b);
@@ -114,11 +114,11 @@ double log_beta_binom(double k, double n, double a, double b)
 double logBinomial_boost(unsigned int mi_t , unsigned int di_t, double prob)
 {
     binomial model_1(di_t, prob);
-    double emp=pdf(model_1, mi_t);
-    if(emp < pArithmetic::Inf)
-        return pArithmetic::logInf;
+    long double emp=pdf(model_1, mi_t);
+    if(emp < 1e-1000L)
+        return logl(1e-1000L);
     else
-        return log(emp);
+        return logl(emp);
 }
 double logBinomial(unsigned int mi_t , unsigned int di_t, double prob)
 {   
@@ -130,6 +130,7 @@ double logProb(unsigned int mi_n , unsigned int  di_n , unsigned int  mi_t , uns
     unsigned int x = genotype[0];
     unsigned int y = genotype[1];
     double mix_m = (1-c) * mi_n + c * mi_n * x;  // mixed maternal alleles
+    if(mix_m < 1) mix_m = 1;   // base level
     double sum   = (1-c) * di_n + c * mi_n * x + c * (di_n - mi_n) * y;   // all alleles
     if(sum == 0) {printf("[error] sum == 0 in logProb \n"); exit(-1);}
     double prob  = mix_m/sum;
@@ -140,7 +141,14 @@ double logProb(unsigned int mi_n , unsigned int  di_n , unsigned int  mi_t , uns
 
     /// using binomial dist
     //return logBinomial_boost (mi_t ,  di_t, prob);
-    return logBinomial(mi_t ,  di_t, prob);
+    //
+    if((sum - mix_m) <= 0)
+    {
+        sum = mix_m +1;
+    }
+
+    return log_beta_binom(mi_t, di_t, mix_m, (sum - mix_m));
+    //return logBinomial(mi_t ,  di_t, prob);
 }
 
 /// c for tumor cellularity.
@@ -216,6 +224,38 @@ double logProb_depth_del(unsigned int di_n , double  sum_di_n , unsigned int  di
 }
 
 
+double logProb_depth_imp( double mi_n,  double di_n,
+                      double  sum_di_n , double  di_t , double  sum_di_t,
+                double ratio, double c, int genotype[])
+{
+    unsigned int x = genotype[0];
+    unsigned int y = genotype[1];
+    double mix_m   = c * (mi_n * x + (di_n - mi_n) * y) + (1-c) * di_n;
+    double sum     = sum_di_n * (ratio * c + 1 - c) ;   // all alleles
+
+    if(sum == 0)  {Rprintf("[error] sum == 0 in logProb \n"); exit(-1);}
+    double prob  = mix_m/sum;
+
+    /// using beta-binomial dist
+    //return log_beta_binom (di_t ,  sum_di_t, mix_m, sum - mix_m);
+    //
+    /// using binomial dist
+    if(mix_m >= sum)
+    {
+        printf(" [fatal error] mix_m >= sum, so that p > 1. \n");
+        exit(-1);
+    }
+
+    if(mix_m < 1)   {   mix_m =1;   }
+    if(sum - mix_m < 1)   {   sum  = mix_m +1;   }
+
+    return logBinomial_boost (di_t ,  sum_di_t, prob);
+    //return log_beta_binom(di_t , sum_di_t, mix_m, sum - mix_m);
+}
+
+
+
+
 //       g_rcov  = \frac{tumor}{( 1 - del) *  (normal * (tc*DOA + 1-tc))} when 0<= del  <=1
 double get_rcov(int* depths, int T, double tc, double DOA,  double del)
 {
@@ -246,6 +286,55 @@ double get_del(int* depths, int T, double tc, double DOA,  double rcov)
 }
 
 
+extern "C"
+{
+    // for examine the prob calc from AD and RD separately, and for seeing the
+    // tiny prob cut off effect!
+   void emissionDist_Debug(int* depths, int* T, int* genotypes, int* cnStates, double* tc, double* DOA, double* prob_RD, double* prob_AD)
+   {
+       printf(" %d -- %d -- %d -- %d -- %d -- %d . \n", depths[0], *T, genotypes[0], cnStates[0], *tc, *DOA  );
+
+
+        double sum_di_normal = 0;
+        double sum_di_tumor  = 0;
+
+        R_CStackLimit=(uintptr_t)-1;
+
+        for(int m = 0; m < *T; m++)
+        {
+            sum_di_normal += depths[m*4 +1];
+            sum_di_tumor  += depths[m*4 +3];
+        }
+
+
+        for(int m = 0; m < *T; m++)
+        {
+            int largerIdx = 0;
+
+            int i = cnStates[m];
+
+            int g_i[2] = {0, 0};
+
+            double deletion = 0.0001;
+            
+            g_i[0]     = genotypes[(i -1) * 2];
+            g_i[1]     = genotypes[(i -1) * 2 +1];
+            prob_AD[m] = logProb(depths[m*4], depths[m*4 +1], depths[m*4 +2], depths[m*4 +3],
+                          *tc, g_i);
+
+            int cnGain = g_i[0] + g_i[1] -2;
+
+            prob_RD[m] = logProb_depth_imp (depths[m*4], depths[m*4 +1], sum_di_normal, depths[m*4 +3], sum_di_tumor,
+                            *DOA, *tc, g_i);
+
+
+        }
+
+
+   }
+}
+
+
 
 
 void emissionDist(int* depths, int T, int* genotypes, int k, double tc, double DOA, vector< vector<double> >&   yll, double deletion)
@@ -253,6 +342,8 @@ void emissionDist(int* depths, int T, int* genotypes, int k, double tc, double D
 
     double sum_di_normal = 0;
     double sum_di_tumor  = 0;
+
+    int scale = 10;
 
     R_CStackLimit=(uintptr_t)-1;
 
@@ -268,6 +359,7 @@ void emissionDist(int* depths, int T, int* genotypes, int k, double tc, double D
 #pragma omp for
         for(int m = 0; m < T; m++)
         {
+
             int largerIdx = 0;
 
             for(int i = 0; i < k; i++)
@@ -278,7 +370,7 @@ void emissionDist(int* depths, int T, int* genotypes, int k, double tc, double D
                 g_i[1] = genotypes[i * 2 +1];
                 yll[i][m] = 0;
                 yll[i][m] = logProb(depths[m*4], depths[m*4 +1], depths[m*4 +2], depths[m*4 +3],
-                                tc, g_i);
+                                tc, g_i) * scale;
 #pragma omp critical 
                  {
                      if(yll[i][m] > yll[largerIdx][m])
@@ -289,8 +381,15 @@ void emissionDist(int* depths, int T, int* genotypes, int k, double tc, double D
 
                 int cnGain = g_i[0] + g_i[1] -2;
 #pragma omp atomic
-                yll[i][m] += logProb_depth_del( depths[m*4 +1], sum_di_normal, depths[m*4 +3], sum_di_tumor,
-                                tc, DOA, cnGain, deletion);
+                yll[i][m] += logProb_depth_imp( depths[m*4], depths[m*4 +1], sum_di_normal, depths[m*4 +3], sum_di_tumor,
+                                 DOA, tc, g_i);
+
+//                double logProb_depth_imp( double mi_n,  double di_n,
+//                                              double  sum_di_n , double  di_t , double  sum_di_t,
+//                                                              double ratio, double c, int genotype[])
+//
+
+
 
             }
             if(yll[largerIdx][m] < pArithmetic::logInf_ld/2)

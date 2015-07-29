@@ -1,7 +1,7 @@
 /************************************************************************
  *  Author: Wenhan CHEN
  *  Date  : 27 Oct 2014
- *  Last_Modified : 14 Jun 2015 13:19:19
+ *  Last_Modified : 28 Jul 2015 10:23:02
  *  Description: This is a test for applying same optimazation but on depth.
   *
  *    NLopt package is MIT implementation of a set of optimization algorithms.
@@ -297,6 +297,8 @@ void getTC_Ratio_2(double* filter, int* depth, int* genotypes, double** tpm, dou
         MaxLikelihood mm (&ff, lb, ub, 0);
         mm.doOptimize();
         paras = ff.initParameters;
+
+        printf("\t @ current likelihood %f\n", ff.log_lik);
         if(ff.log_lik > pre_log_like)
         {
             *res_tc  = paras[0];
