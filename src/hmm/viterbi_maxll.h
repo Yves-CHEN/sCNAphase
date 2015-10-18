@@ -1,7 +1,7 @@
 /************************************************************************
  *  Author: Wenhan CHEN
  *  Date  : 26 Aug 2014
- *  Last_Modified : 01 Mar 2015 12:37:10
+ *  Last_Modified : 12 Sep 2015 18:29:02
  *  Description: This is for estimation of tumor cellularity given the 
  *    genotypes at every heterozygous loci using maximum likelihood 
  *    funciton. NLOPT package is used for the purpose of optimation.
@@ -87,6 +87,50 @@ void maxlik(int* depth, int* genotypes, int* numOfObser, double* cc, double* res
 *    DECLARE FUNCTIONs.
 *
  ------------------------------------------------------- */
+double viterbi_probOnly(vector< vector<double> > &yll, vector< vector<double> > &tpm,
+             double *pi)
+{
+
+    int T = yll[0].size(), k = yll.size();
+    vector< vector<double> > log_lik_table(k, vector<double>(T));
+    vector< vector<unsigned int> > ptrs(k, vector<unsigned int>(T));
+    // Initialization
+    vector<double> v(k);
+
+    for(int i = 0; i < k; i++)
+        log_lik_table[i][0] = yll[i][0] + pi[i];
+    for(int m = 1; m < T; m++)
+        for(int i = 0; i < k; i++)
+        {
+
+            int best_ind = 0;
+            double s = R_NegInf;
+            
+            for(int j = 0; j < k; j++)
+            {
+                
+                v[j] = log_lik_table[j][m - 1] + tpm[j][i];
+                if (v[j] > s)
+                    s = v[j], best_ind = j;
+
+            }
+            log_lik_table[i][m] = yll[i][m] + v[ptrs[i][m] = best_ind];
+
+        }
+
+    //	Track back the Viterbi path using the pointers stored in the
+    //	previous step
+
+    double s = log_lik_table[0][T - 1];
+
+    for(int i = 1; i < k; i++)
+        if (log_lik_table[i][T - 1] > s)
+            s = log_lik_table[i][T - 1];
+
+    return s;
+
+}
+
 
 double viterbi(vector< vector<double> > &yll, vector< vector<double> > &tpm,
              double *pi, int *states)
@@ -132,7 +176,8 @@ double viterbi(vector< vector<double> > &yll, vector< vector<double> > &tpm,
     for(int m = T - 2; m >= 0; m--)
         states[m] = ptrs[states[m + 1]][m + 1];
 
-    return log_lik_table[states[T - 1]][T - 1];
+    return s;
+    //return log_lik_table[states[T - 1]][T - 1];
 
 }
 

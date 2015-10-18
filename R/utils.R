@@ -1,11 +1,11 @@
 
+
 readVCF  <-  function (prefix, chr)
 {
 
     addup   <- function(v) {c(v[1] + v[2], v[3] + v[4])}
     chr = paste("chr", chr, sep = "");
     aFile=paste(prefix, chr, "vcf", sep=".")
-    #xx = read.table(aFile, comment.char = "#", nrows=140, stringsAsFactors=FALSE)
     xx = read.table(aFile, comment.char = "#", stringsAsFactors=FALSE)
     # remove INDELS and records without DP4 field
     sel = grep("INDEL", xx[[8]], invert=T)
@@ -18,7 +18,6 @@ readVCF  <-  function (prefix, chr)
 
     digits=lapply(tmp, strsplit, split="[,=;]")
     nrow = dim(xx)[1]
-    #res = as.data.frame(matrix(nrow=nrow, ncol=5))  # pos   ref alt   freq1 freq2
     res = (matrix(nrow=nrow, ncol=5))  # pos   ref alt   freq1 freq2
     for (i in 1:nrow)
     {
@@ -118,7 +117,6 @@ average <- function (coord, rSquare)
         {
             res[idx] = sum /count
             theNames[idx] = pre
-
             idx = idx +1
             count = 1
             pre = coord[num]
@@ -128,16 +126,13 @@ average <- function (coord, rSquare)
         else
         {
             count = 1 + count
-
             sum = sum + rSquare[num]
         }
     }
     res[idx] = sum / count
-
     theNames[idx] = pre
     names(res) <- theNames
-    print(names(res)[1:10])
-res[2:idx]
+    res[2:idx]
 }
 
 
@@ -188,7 +183,7 @@ plotHeatmap  <- function (coord, pvSet, tt=1, font=5, barWidth=1, barThick=1, cS
 #     merge   is to specify how to merge the frequences at SNPi into regions. Don't merge by default.
 #     rm.zero is for remove zero frequency records. Remove zero by default.
 #
-loadFreq  <- function(chrID, merge, doflip=T, rm.zero = T, ana = "p.tumor", nPrefix, tPrefix,  forceRead  = F)
+loadFreq  <- function(chrID, merge, doflip=T, rm.zero = T, ana = "p.tumor", nPrefix, tPrefix,  forceRead  = F, allelicMapability = F)
 {
     #  how to merge regions
     #preprocess = merge
@@ -243,9 +238,13 @@ loadFreq  <- function(chrID, merge, doflip=T, rm.zero = T, ana = "p.tumor", nPre
     tAFreq$NRef[missingIdx] = 0.5
 
     # 1. correct the different number of read mapped to ref than alt.
-    allelicMapability =  0.953
-    nAFreq$NAlt  = (nAFreq$NAlt  / allelicMapability)
-    tAFreq$NAlt  = (tAFreq$NAlt  / allelicMapability)
+
+    if(allelicMapability == T)
+    {
+        allelicMapability =  0.953
+        nAFreq$NAlt  = (nAFreq$NAlt  / allelicMapability)
+        tAFreq$NAlt  = (tAFreq$NAlt  / allelicMapability)
+    }
 
     # 2. generated phased allelic depth
     if(doflip == T)
@@ -253,19 +252,13 @@ loadFreq  <- function(chrID, merge, doflip=T, rm.zero = T, ana = "p.tumor", nPre
         flipSites = rules$flip1 == 1
         nalt  = nAFreq$NAlt [ flipSites]
         nref  = nAFreq$NRef [ flipSites]
-        
         nAFreq$NAlt [flipSites ] = nref  
         nAFreq$NRef [flipSites ] = nalt  
-
         nalt  = tAFreq$NAlt [flipSites]
         nref  = tAFreq$NRef [flipSites]
         tAFreq$NAlt [flipSites] = nref  
         tAFreq$NRef [flipSites] = nalt  
     }
-
-
-
-
     
 
     # 3. heterogenous alts (normal.alt != tumor.alt)
@@ -527,25 +520,18 @@ indexing<-function(idx) {as.numeric(names(idx))}
 
 inferStates  <-  function (anaName, preprocess, chrID, runHMM = T, method = "Baum_Welch", 
                            nB,nSum, tB, tSum,
-                           genotypes, maxiter=5, fullLabel = fullLabel)
+                           genotypes, maxiter=5, fullLabel = fullLabel, DOA_range = c(1.0, 1.4),
+                           underate = 1, tpmType = 1, reRun = T, mlen = 40)
 {
 
-    indexing<-function(idx) {as.numeric(names(idx))}
-
     dataFile = paste("res", anaName, preprocess,"chr", chrID,"dat", sep=".")
+
     if ( !runHMM & file.exists(dataFile)) 
     {
         load(dataFile)
     } else
     {
-        #DOA_range = c( 1.5, 2, 2.5)
-        #DOA_range = c(0.9999999, 1.50000001)
-        #DOA_range = c(1.4000001, 2.0000001, 2.50000001)
-        #DOA_range = c(0.800001, 1.6, 2.4, 3.4)
-        DOA_range = c(0.4, 3.4)  # 0.4 0.8 1.2 1.6 2.0 2.4 2.8 3.2
-
         allRes = list()
-
         for(start in c(1:(length(DOA_range)-1)))
         {
             print(c(DOA_range[start], DOA_range[start +1]))
@@ -556,7 +542,7 @@ inferStates  <-  function (anaName, preprocess, chrID, runHMM = T, method = "Bau
                          genotypes, 
                          maxiter = maxiter, 
                          DOA_range = c(DOA_range[start], DOA_range[start +1]),
-                         method  = method)
+                         method  = method, underate=underate, tpmType = tpmType)
                 allRes[[start]] = maxRes
             } else{
                 res= segHMM2(rbind(nB,nSum,tB,tSum), 
@@ -564,42 +550,112 @@ inferStates  <-  function (anaName, preprocess, chrID, runHMM = T, method = "Bau
                          genotypes, 
                          maxiter = maxiter, 
                          DOA_range = c(DOA_range[start], DOA_range[start +1]),
-                         method  = method)
+                         method  = method, underate=underate, tpmType = tpmType)
                 allRes[[start]] = res
             # Do the inference for different DOA_ranges.
             # If the change is bigger than 1000, accept the better range.
-                if(res$log.lik - maxRes$log.lik  > 1000) maxRes = res
-
-                print(maxRes$log.lik)
-
+                if(res$log.lik - maxRes$log.lik  > 1) maxRes = res
             }
-
-
         }
 
-        res=list()
-        idx=1
-        #for (cc in seq(0.001,0.999, by=1/as.double(numInits)))
-      #  cc=0.95
-      #  {
-      #      tmp  <- segHMM2(rbind(nB,nSum,tB,tSum), length(RCNs$RCN), genotypes, tc = cc, maxiter=30, method=method)
-      #      res[[idx]] = c(tmp$tc, tmp$log.lik,cc)
-
-      #      if(tmp$log.lik > maxRes$log.lik)
-      #      {
-      #          maxRes = tmp
-      #      }
-      #      idx = idx +1
-      #      print("============================================= \n");
-      #  }
-        #tmp=lapply(res, func <- function(aRes) {print(c(aRes$tc, aRes$log.lik))})
-        tmp=lapply(res, func <- function(aRes) {print(aRes)})
-
-        label = indexing(nB)
-        save(nB,nSum, tB, tSum, label, fullLabel, maxRes, allRes, file=dataFile)
     }
-    maxRes
+    allRes
 }
+
+runForPloidy <-  function (anaName, preprocess, chrID, runHMM = T, method = "Baum_Welch", 
+                           nB,nSum, tB, tSum, maxRes,
+                           genotypes, maxiter=5, fullLabel = fullLabel, DOA_range = c(1.0, 1.4),
+                           underate = 1, tpmType = 1, reRun = T, mlen = 40, unmergedDepth)
+{
+
+        mtB    = tB
+        mnB    = nB
+        mtSum  = tSum
+        mnSum  = nSum
+
+        #frequencyFile = paste(anaName, chrID, ".gw.dat", sep='.')
+        #load(frequencyFile)
+        startingPos = which(names(unmergedDepth$tB) %in% names(mtB))
+        #startingPos = startingPos[1:(length(startingPos)-1)]
+        genotypes   = maxRes$genotypes
+        merge  <- function(aa, mlen=2){max(tapply(aa, as.integer(((1:length(aa)) +1) / mlen), sum))}
+        print(genotypes)
+        maxCN       = max(merge(genotypes, mlen=2))
+        CN          = genotypes[maxRes$hidden.states*2-1] +  genotypes[maxRes$hidden.states*2]
+        tab         = data.frame(cbind(unmergedDepth$nB,
+                                       unmergedDepth$nSum,
+                                       unmergedDepth$tB,
+                                       unmergedDepth$tSum))
+        pos         = as.numeric(names(mtB))
+        ml = sapply(startingPos,
+                    function(starting, tab, genotypes, tc, mlen)  {
+                        ending = min(starting+mlen, nrow(tab))
+                        maxll(tab[starting:ending, , drop=F], 
+                              genotypes = genotypes, tc = tc) },
+                    tab = tab, genotypes=genotypes, tc = maxRes$tc, mlen = mlen)
+
+        #ml = c(ml,0)
+        clean = 0.10
+        # if the maxCN =12, the loci with cn > 6 will be defined as significantly AMP and filtered. 
+        cnRange = c(1, maxCN/2)  
+        selIncluded = rep(T, length(ml))
+        for(eachGeno  in unique(maxRes$hidden.states))
+        {
+            aGenotype = maxRes$hidden.states == eachGeno
+            selIncluded[aGenotype] = ml[aGenotype] > quantile(ml[aGenotype], prob=clean, type=1)
+        }
+
+        depthClean = 0.01
+        outlayerBound = quantile(mtSum/mnSum, prob=1 - depthClean, type =1)
+
+        bafClean = 0.01
+        bafThresh = quantile(abs(mnB/mnSum - 0.5), prob = 1 - bafClean, type = 1)
+
+        print(sprintf("length of ml %d and mtB %d", length(ml), length(mtB)))
+        selIncluded = selIncluded & CN <= cnRange[2] & CN >= cnRange[1] & (mtSum / mnSum) < outlayerBound & abs(mnB/mnSum - 0.5) < bafThresh
+        print(sprintf("Downsampled %f from %d",
+                      sum(selIncluded)/length(selIncluded),
+                      length(selIncluded)))
+
+
+        nBMerged   = c()
+        tBMerged   = c()
+        nSumMerged = c()
+        tSumMerged = c()
+        mergeDegree = 6
+        sameState <- function(states) { sum (states != states[1]) }
+        for(idx in c(1:(sum(selIncluded)/mergeDegree)))
+        {
+            range = seq( (idx-1) * mergeDegree + 1,  idx * mergeDegree )
+            if(sameState( maxRes$hidden.states[selIncluded][range]) == 0)
+            #if(maxRes$hidden.states[selIncluded][idx*2-1] == maxRes$hidden.states[selIncluded][idx*2])
+            {
+                nBMerged   = c(nBMerged,   sum(mnB  [selIncluded][range]))
+                tBMerged   = c(tBMerged,   sum(mtB  [selIncluded][range]))
+                nSumMerged = c(nSumMerged, sum(mnSum[selIncluded][range]))
+                tSumMerged = c(tSumMerged, sum(mtSum[selIncluded][range]))
+            }
+        }
+
+        likelihoods = c()
+        for(start in c(1:(length(DOA_range)-1)))
+        {
+            print(c(DOA_range[start], DOA_range[start +1]))
+            res= segHMM2(rbind(nBMerged, nSumMerged, tBMerged, tSumMerged), 
+                     length(genotypes)/2,
+                     genotypes, 
+                     maxiter = maxiter, 
+                     DOA_range = c(DOA_range[start], DOA_range[start +1]),
+                     method  = method, underate=underate, tpmType = tpmType)
+            likelihoods = c(likelihoods, res$log.lik)
+        }
+        list(likelihoods=likelihoods, ml=ml, selIncluded = selIncluded)
+}
+
+
+
+
+
 plotPred  <- function(fluctuation, nB,nSum, tB, tSum, fullLabel, genotypes, maxRes, method = "Baum_Welch", len, chrID)
 {
 
@@ -630,14 +686,13 @@ plotPred  <- function(fluctuation, nB,nSum, tB, tSum, fullLabel, genotypes, maxR
 
     sum_di_t = sum(tSum)
     sum_di_n = sum(nSum)
-    rdTitle  = paste("Relative read depth", "tc", roundTo(maxRes$tc, 3), "DOA", roundTo(maxRes$DOA,3), sep="--")
+    rdTitle  = paste("Relative read depth",
+                     "tc", roundTo(maxRes$tc, 3),
+                     "DOA", roundTo(maxRes$DOA,3), sep="--")
     plot(label, tSum, main=rdTitle, xlab="loci", ylab="")
     plot(label, nSum, main=rdTitle, xlab="loci", ylab="")
-    plot(label, tSum/nSum * (sum_di_n * maxRes$DOA/sum_di_t), main=rdTitle, xlab="loci", ylab="", ylim = c(0,5))
-
-    print("rcov : ")
-    print((sum_di_n * maxRes$DOA * maxRes$tc + (1 - maxRes$tc) * sum_di_n)/sum_di_t)
-
+    plot(label, tSum/nSum * (sum_di_n * maxRes$DOA/sum_di_t), main=rdTitle,
+         xlab="loci", ylab="", ylim = c(0,5))
     ratio = sum_di_n * maxRes$DOA * maxRes$tc / (sum_di_n * maxRes$DOA * maxRes$tc + (1 - maxRes$tc) * sum_di_n)
     print(paste("ratio: ", ratio))
     print(paste("reads: ", ratio * sum_di_t))
@@ -896,21 +951,101 @@ plotMAF <- function(pos, baf, prange=1, LDdata="", interval=1,  title="test", ce
 #    The sum will be 0, and an error occurs when divide 0.
 #    Fix_tc determine if tc need to be estimated. If T, tc will be used as an initial guess.
 
-segHMM2  <- function(allelicDepth, k, genotypes, tc = 0.5, fix_tc = F, diag.prob = 0.999999, maxiter = 10, eps = 0.0000001, DOA = 1.5, print.info = FALSE, method="Baum_Welch", DOA_range=c(1, 1.5))
+segHMM2  <- function(allelicDepth, k, genotypes,  tc = 0.5, fix_tc = F, diag.prob = 0.9, maxiter = 10, eps = 0.0000001, DOA = 1.5, print.info = FALSE, method="Baum_Welch", DOA_range=c(1, 1.5), underate=1, tpmType =1)
 {
     # Start the clock!
     ptm <- proc.time()
+    effectSize = 5
+    k  = length(genotypes)/2
 
-
-    numobs = dim(allelicDepth)[2]
+    diag.prob = 0.5
     gamma     <- matrix((1 - diag.prob) / (k - 1), k, k)
     diag(gamma) <- diag.prob
+    CN = genotypes[c(1:k)*2 - 1] + genotypes[c(1:k)*2 ]
 
+    if(tpmType == 2)
+    {
+        print("Using copy number transition TPM")
+        diag.prob = 0.5
+        off.prob  = (1 - diag.prob)/ ( length(unique(CN)) -1)
+        gamma     <- matrix(diag.prob, k, k)
+        for (i in c(1:k))
+        {
+            for(j in 1:k)
+            {
+                cni  = genotypes[2*i -1] + genotypes[2*i ]
+                cnj  = genotypes[2*j -1] + genotypes[2*j ]
+                if(cni != cnj)
+                    gamma[i,j]  <- off.prob
+            }
+        }
+
+    }
+
+
+
+    if(tpmType == 3)
+    {
+        print("Using symetric states TPM")
+        diag.prob = 0.40
+
+        # redundency defined as the states reverse complement. e.g. 1,0  -  0,1
+        numOfNonRedundent = 0
+        for (aCN in unique(CN))
+        {
+            num = sum(CN == aCN)
+            if(num %% 2 !=0) numOfNonRedundent = (num + 1) / 2 + numOfNonRedundent
+            else    numOfNonRedundent = (num) / 2 + numOfNonRedundent
+        }
+        off.prob  = (1 - diag.prob)/ ( numOfNonRedundent -1)
+        aSymPenalty = 0.1
+        for (i in c(1:k))
+        {
+            for(j in 1:k)
+            {
+                cni  = genotypes[2*i -1] + genotypes[2*i ]
+                cnj  = genotypes[2*j -1] + genotypes[2*j ]
+                if(cni > 3 && cni == cnj)
+                {
+                    highCNPenalty = 0.90
+                }
+                else
+                {
+                     highCNPenalty = 1
+                }
+
+                if(genotypes[2*i -1] ==  genotypes[2*j ] & genotypes[2*j -1] == genotypes[2*i ])
+                {
+                    # higher quatile, the closer to off.prob
+                    #gamma[i,j]  <- (diag.prob - off.prob) / quantile + off.prob
+                    #gamma[i,j]  <- gamma[i,j] * highCNPenalty
+                    #gamma[i,j]  <- diag.prob * highCNPenalty * aSymPenalty
+                    gamma[i,j]  <- off.prob  * 2
+                    
+                }
+                else
+                {
+                    gamma[i,j]  <- off.prob  
+                }
+                if(i == j)
+                {
+                    gamma[i,j]  <- diag.prob * highCNPenalty
+                }
+            }
+        }
+    }
+
+
+
+
+    initP = as.double(rep(-log(k), k))
+    numobs = dim(allelicDepth)[2]
+    ifSigAmp = rep(0, numobs)
     prob = rep(0.0, numobs * k)
         res <-
             .C(method,
                as.integer(numobs),
-               as.integer(k),
+               as.integer(length(genotypes)/2),
                depths    = as.integer(as.vector(allelicDepth)),
                genotypes = as.integer(genotypes),
                tc        = as.double(tc),
@@ -925,30 +1060,42 @@ segHMM2  <- function(allelicDepth, k, genotypes, tc = 0.5, fix_tc = F, diag.prob
                as.logical(fix_tc),
                DOA=as.double(DOA),
                DOA_range=as.double(DOA_range),
+               ifSigAmp = as.integer(ifSigAmp),
+               as.double(underate),
                as.logical(print.info),
-               as.double(g_rcov),
+               #as.double(g_rcov),
                PACKAGE = "sCNAphase"
                )
+
         res$hidden.states <- res$hidden.states + 1
         res$gamma <- matrix(res$gamma, nr = k)
 
         # Stop the clock
         print(proc.time() - ptm)
-
+        res$depths              = c()
+        res$filtered.cond.probs = c()
         res
+}
+calcGC  <-  function(chrID, seqFile, winSize, pos)
+{
+    print(length(pos))
+    range = cbind(pos - winSize, pos + winSize)
+    fa <- open(FaFile(seqFile))
+    selRange = GRanges(chrID, IRanges(range[,1], range[,2]) )
+    dna <- scanFa(fa, param=selRange)
+    gcContect = sapply(as.character(dna), function(seq){ (1-nchar(gsub("[GCgc]", "",seq)) / nchar(seq)) * 100})
+    gcContect
 }
 
 
 
 
 
-inferCNA  <- function(anaName, nPrefix, tPrefix, chroms, doPhase = T, forceRead=F, maxCopyNum=11, mlen = 30, maxiter = 5, doFilter = F)
+
+inferCNA  <- function(anaName, nPrefix, tPrefix, chroms, doPhase = T, forceRead=F, maxCopyNum=11, mlen = 30, maxiter = 5, doFilter = F, ploidy = c(1.0, 1.4), fakeNormal = F, underate = 1, tpmType=1, runHMM = T, allelicMapability = F, reRun = T, method = "Baum_Welch")
 {
     preprocess="phased"
-
     g_rcov = 0.5
-
-
     chrID = "W"
 
     #************************************************************************
@@ -962,42 +1109,113 @@ inferCNA  <- function(anaName, nPrefix, tPrefix, chroms, doPhase = T, forceRead=
     nB = c()
     tSum = c()
     nSum = c()
-    for (AChrID in chroms)
+    
+        gcCombine = c()
+        depthCombine = c()
+
+    forceLoad = T
+    if(!forceLoad)
     {
-        res = loadFreq( ana = anaName,
-                       doflip = doPhase,
-                       AChrID, 
-                       merge="perSite",
-                       nPrefix = nPrefix,
-                       tPrefix = tPrefix,
-                       forceRead = F
-               )
-        tB       = c(tB   ,  res$tB  )
-        nB       = c(nB   ,  res$nB  )
-        tSum     = c(tSum ,  res$tSum)
-        nSum     = c(nSum ,  res$nSum)
-        label    = c(label,  as.numeric(names(res$tB)) + startPos + gap)
-        startPos = max(label)
-        breakPoints = c(breakPoints, startPos)
+       load(paste(anaName, chrID, ".gw.dat", sep='.'))
+    }else
+    {
+        for (AChrID in chroms)
+        {
+            res = loadFreq( ana = anaName,
+                           doflip = doPhase,
+                           AChrID, 
+                           merge="perSite",
+                           nPrefix = nPrefix,
+                           tPrefix = tPrefix,
+                           forceRead = F,
+                           allelicMapability = allelicMapability
+                   )
+            tB       = c(tB   ,  res$tB  )
+            nB       = c(nB   ,  res$nB  )
+            tSum     = c(tSum ,  res$tSum)
+            nSum     = c(nSum ,  res$nSum)
+            notNA=!is.na(tB)
+            tB=tB[notNA]
+            tSum=tSum[notNA]
+            nB=nB[notNA]
+            nSum=nSum[notNA]
+
+            label    = c(label,  as.numeric(names(res$tB)) + startPos + gap)
+            startPos = max(label)
+            breakPoints = c(breakPoints, startPos)
+            if(fakeNormal)
+            {
+                baseDir = "/panfs/home/wenhanchen/work/DATA/humanAssembly/HG19/"
+                print(sprintf("%s/chr%d.fa",baseDir, AChrID))
+                xx = calcGC  (AChrID, sprintf("%s/chr%d.fa",baseDir, AChrID), winSize = 500, pos = as.numeric(names(res$tB)) )
+                yy = res$tSum
+                gcCombine    = c(gcCombine, xx)
+                depthCombine = c(depthCombine, yy)
+            }
+
+
+        }
+        names(tB)   = (label)
+        names(nB)   = (label)  
+        names(tSum) = (label)
+        names(nSum) = (label)
+
+
+      
+        if(fakeNormal)
+        {
+            fit2    <- lm(depthCombine~poly(gcCombine,7))
+            expectedDepth  <- predict(fit2)
+
+            save(file="gc.dat", tB,tSum,nB,nSum, fit2, gcCombine, depthCombine)
+
+            pdf(file=sprintf("%s.gcEffect.pdf", anaName))
+            plot(gcCombine, predict(fit2), type="p", col="red", lwd=1)
+            dev.off()
+            print("Generating faked read depth that reflects the GC bias")
+
+              nB   = nB/nSum * expectedDepth +1
+              nB   = 0.5 * expectedDepth +1
+              nSum = expectedDepth +1
+              sel = nB <1 | nSum <1
+              nB[sel] = 0.5
+              nSum[sel]= 1
+
+            sel   = gcCombine > 40 & gcCombine < 60
+            tB    = tB   [sel]
+            nB    = nB   [sel]
+            tSum  = tSum [sel]
+            nSum  = nSum [sel]
+            label = label[sel]
+            print("depth generated")
+
+        }
+
+        save(tB,nB,tSum,nSum, breakPoints, file=paste(anaName, chrID, ".gw.dat", sep='.'))
+        ADepth <- function(tB, tSum, nB, nSum, breakPoints)
+        {
+            me <- list(
+                tB= tB,
+                tSum = tSum,
+                nB = nB, 
+                nSum = nSum, 
+                breakPoints = breakPoints
+            )
+            ## Set the name for the class
+            class(me) <- append(class(me),"ADepth")
+            return(me)
+        }
+
+        unmergedDepth = ADepth(tB, tSum, nB, nSum, breakPoints)
 
     }
-    names(tB)   = (label)
-    names(nB)   = (label)  
-    names(tSum) = (label)
-    names(nSum) = (label)
 
-
-    save(tB,nB,tSum,nSum, breakPoints, file=paste(anaName, chrID, ".gw.dat", sep='.'))
-    notNA=!is.na(tB)
-    tB=tB[notNA]
-    tSum=tSum[notNA]
-    nB=nB[notNA]
-    nSum=nSum[notNA]
     #************************************************************************
     #          Possible genotypes 
     #************************************************************************
     genotypes = genGenotypes(maxCopyNum) # all the possible genotypes with copy number < maxCopyNum
     genotypes = c(0, 0, genotypes)       # adding doulbe deletion
+
 
     #************************************************************************
     #                 Merging (state shifting detection)
@@ -1007,7 +1225,11 @@ inferCNA  <- function(anaName, nPrefix, tPrefix, chroms, doPhase = T, forceRead=
     par(cex.lab = 1)
 
     outfile=paste(doPhase, anaName, chrID, preprocess, ".pdf", sep=".")
-    pdf(file=outfile, width=24, height=6)
+    pdf(file=outfile, width=24, height=6, title=outfile)
+
+
+
+
 
     #************************************************************************
     #                 Merging (state shifting detection)
@@ -1032,14 +1254,84 @@ inferCNA  <- function(anaName, nPrefix, tPrefix, chroms, doPhase = T, forceRead=
     nB   = ceiling(mergedDepth$nB)
     tSum = ceiling(mergedDepth$tSum)
     nSum = ceiling(mergedDepth$nSum)
+
     names(tB) = names(fluctuation)
 
+  
+
+    #************************************************************************
+    #                 Remove germ-line CNVs
+    #************************************************************************
+    removeCNVs = T
+    if(removeCNVs)
+    {
+        cleanBAF = 0.01
+        bafThresh = quantile(abs(nB/nSum - 0.5), prob = 1 - cleanBAF, type = 1)
+        selNonCNVs   = abs(nB/nSum - 0.5) < bafThresh
+        tB    = tB   [selNonCNVs]
+        nB    = nB   [selNonCNVs]
+        tSum  = tSum [selNonCNVs]
+        nSum  = nSum [selNonCNVs]
+        fluctuation = fluctuation [selNonCNVs]
+        fullLabel = fullLabel[selNonCNVs,]
+        label = label[selNonCNVs]
+    }
+
+ 
     #************************************************************************
     #                 CN state prediction 
     #************************************************************************
-    maxRes = inferStates  (anaName, preprocess, chrID, runHMM = T, method = "Baum_Welch", 
+    allRes = inferStates  (anaName, preprocess, chrID,  method = method, 
                            nB,nSum, tB, tSum,
-                           genotypes, maxiter=maxiter, fullLabel = fullLabel)
+                           genotypes, maxiter=maxiter, fullLabel = fullLabel, DOA_range = ploidy,
+                           tpmType = tpmType,
+                           underate = underate,
+                           runHMM = runHMM,
+                           mlen = mlen)
+
+    extract <- function(aList, field){ aList[field] }
+    logLiks = unlist( sapply(allRes, extract, field = "log.lik"))
+    maxRes = allRes [[ which(max(logLiks) == logLiks)]]
+
+
+    dataFile = paste("res", anaName, preprocess,"chr", chrID,"dat", sep=".")
+    label = as.numeric(names(tB))
+    if(reRun)
+    {
+        likelihoodEst = runForPloidy  (anaName, preprocess, chrID,  method = method, 
+                           nB,nSum, tB, tSum,
+                           maxRes = maxRes,
+                           genotypes, maxiter=maxiter, fullLabel = fullLabel, DOA_range = ploidy,
+                           tpmType = tpmType,
+                           underate = underate,
+                           runHMM = runHMM,
+                           mlen = mlen, unmergedDepth = unmergedDepth)
+        likelihoods  = likelihoodEst$likelihoods
+        ml          = likelihoodEst$ml
+        selIncluded = likelihoodEst$selIncluded
+
+        # find the max
+        maxIdx = which(likelihoods == max(likelihoods))[1]
+        theDOA     = allRes[[maxIdx]]$DOA
+        genotypes = maxRes$genotypes
+        res = segHMM2(rbind(nB[selIncluded], nSum[selIncluded], tB[selIncluded], tSum[selIncluded]), 
+                        length(genotypes)/2,
+                        genotypes, 
+                        maxiter = 1, 
+                        DOA_range = c(theDOA, theDOA + 0.05),
+                        method  = method, underate=underate, tpmType = tpmType)
+        similiarity <- function(aRes, tStates ) {sum(aRes$hidden.states[selIncluded] == tStates)}
+        trueMaxIdx = which.max(unlist(lapply(allRes, similiarity, tStates = res$hidden.states)))
+        maxRes = allRes[[trueMaxIdx]]
+        save(nB,nSum, tB, tSum, label, fullLabel, allRes,
+             likelihoods, ml, selIncluded, file=dataFile)
+    } else
+    {
+        save(nB,nSum, tB, tSum, label, fullLabel, allRes, file=dataFile)
+    }
+
+
+
 
     cat(paste ("Degree of Amplification : ", maxRes$DOA, sep=":"))
     cat(paste ("Predict tumor cellularity : ", maxRes$tc, maxRes$log.lik, sep=":"))
@@ -1051,12 +1343,9 @@ inferCNA  <- function(anaName, nPrefix, tPrefix, chroms, doPhase = T, forceRead=
     prob_RD=rep(0.1, T)
     prob_AD=rep(0.1, T)
 
-
     geno = maxRes$genotypes
     cnStates = maxRes$hidden.states
-cns = geno[maxRes$hidden.states*2-1] +  geno[maxRes$hidden.states*2]
-
-
+    cns = geno[maxRes$hidden.states*2-1] +  geno[maxRes$hidden.states*2]
     tc = maxRes$tc
     DOA = maxRes$DOA
 
@@ -1064,22 +1353,21 @@ cns = geno[maxRes$hidden.states*2-1] +  geno[maxRes$hidden.states*2]
               depths = as.integer(as.vector(depths)),
                T = as.integer(T),
                 geno = as.integer(geno),
+                k = as.integer( length(geno)/2),
                 cnStates = as.integer(cnStates),
                 tc = as.double(tc),
                 DOA = as.double(DOA), 
                 prob_RD = as.double(prob_RD),
                 prob_AD = as.double(prob_AD),
+                underate = underate,
                 PACKAGE="sCNAphase"   
                 )
 
     col = rep(1, length(cns))
     col [cns>8] = 2
-
     plot(res$prob_AD, pch = 4, col = col)
     plot(res$prob_RD, pch = 4, col = col)
-
-
-
+    save(file="prob.dat", res)
     dev.off()
 }
 

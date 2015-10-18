@@ -1,7 +1,7 @@
 /************************************************************************
  *  Author: Wenhan CHEN
  *  Date  : 27 Oct 2014
- *  Last_Modified : 28 Jul 2015 10:23:02
+ *  Last_Modified : 17 Oct 2015 16:28:37
  *  Description: This is a test for applying same optimazation but on depth.
   *
  *    NLopt package is MIT implementation of a set of optimization algorithms.
@@ -72,7 +72,10 @@ public:
     bool      doFilter;
     double*   g_rcov_range;
     double    del;
-    double   log_lik;
+    double    DOA;
+    double    log_lik;
+    double    underate;
+    vector<bool> marking;
 
     vector< vector<double> >   tpm  ;
     vector< vector<double> >   yll  ;
@@ -81,8 +84,8 @@ public:
 
 
     inline TFunc (int* depths, int* genotypes, double* pi, double** tpm, double* filter,
-            int* numOfObser, int* numOfStates, vector<double> initPara, double del)
-    :depths(depths), genotypes(genotypes), pi(pi), T(*numOfObser), k(*numOfStates), filter(filter), ObjectiveFunc(initPara), del(del)
+            int* numOfObser, int* numOfStates, vector<double> initPara, double del, double DOA, double underate)
+    :depths(depths), genotypes(genotypes), pi(pi), T(*numOfObser), k(*numOfStates), filter(filter), ObjectiveFunc(initPara), del(del), DOA(DOA), underate(underate)
     {
         doFilter = false;
         this->tpm.resize   (k, vector<double>(k, 0));
@@ -94,24 +97,36 @@ public:
             }
         }
 
+        marking.resize(T, false);
         yll.resize   (k, vector<double>(T, 0));
         alpha.resize (k, vector<double>(T, 0));
         beta.resize  (k, vector<double>(T, 0));
     };
 
-      
+
+     
     inline double objective(const double* paras)
     {
         double tc  = paras[0];
-        double DOA = paras[1];
+        double DOA = this->DOA;
         double del = this->del;
+        //double DOA = paras[1];
         //double del = paras[2];
         //double del = this->del;
-        emissionDist(depths, T, genotypes, k, tc, DOA, yll, del);
+   //     int T = yll[0].size();
+   //     int k = yll.size();
+        for(int i =0; i < k; i ++)
+            for(int j =0; j < T; j ++)
+                yll[i][j] = 0;
+
+        printf("tc: %f , DOA: %f\n", tc, DOA);
+        emissionDist(depths, T, genotypes, k, tc, DOA, yll, del,  underate);
 
         bool faster = true;
         bool print_info = false;
-        this->log_lik = forward_backward(yll, tpm, pi, doFilter, filter, alpha, beta, faster,print_info);
+        /// this->log_lik = forward_backward(yll, tpm, pi, doFilter, filter, alpha, beta, faster,print_info);
+
+        this->log_lik = viterbi_probOnly(yll, tpm, pi);
 
         Rprintf("\t [info] tc = %f\t DOA = %f when ll = %f, del = %f \n",
                 tc, DOA, log_lik, del);
@@ -154,29 +169,23 @@ public :
     {
         double paraMiniChange[2] = {1e-4, 1e-5};      // optimization parameter minimal changes each step.
         double maxTimes  = 800;
-        
-        //opt = nlopt_create(NLOPT_GN_ISRES, 3);   // Choose algorithm
-        //opt = nlopt_create(NLOPT_GN_ORIG_DIRECT, 2);   // Choose algorithm
-       //opt = nlopt_create(NLOPT_GN_ORIG_DIRECT_L, 3);   // Choose algorithm
-        //opt = nlopt_create(NLOPT_LN_BOBYQA, 2);   // 
-        //opt = nlopt_create(NLOPT_LN_NELDERMEAD, 2);   // 
-        //opt_local = nlopt_create(NLOPT_LN_NELDERMEAD, 2);   // 
 
-        if(optMethod  == 1)  // global opt
+        if(optMethod  == 0)  // global opt
         {
             printf("@ Global search.\n");
-            opt       = nlopt_create(NLOPT_G_MLSL_LDS, 2);
-            opt_local = nlopt_create(NLOPT_LN_SBPLX, 2);
+            opt       = nlopt_create(NLOPT_G_MLSL_LDS, 1);
+            opt_local = nlopt_create(NLOPT_LN_SBPLX, 1);
+            //opt_local = nlopt_create(NLOPT_LN_COBYLA, 2); 
             nlopt_set_local_optimizer(opt, opt_local);
-            nlopt_set_population(opt,10); 
+            nlopt_set_population(opt,4); 
             nlopt_set_xtol_rel(opt_local, 1e-12);          // this would not apply to Globle search.
             nlopt_set_xtol_abs(opt_local, paraMiniChange);    // as above
         }
         else                // local opt
         {
-            opt = nlopt_create(NLOPT_LN_SBPLX, 2);
+            opt = nlopt_create(NLOPT_LN_SBPLX, 1);
+            //opt = nlopt_create(NLOPT_LN_COBYLA, 2); 
         }
-        //opt = nlopt_create(NLOPT_LN_COBYLA, 3); 
         nlopt_set_lower_bounds(opt, lb);            // set stop criteria
         nlopt_set_upper_bounds(opt, ub);
         nlopt_set_xtol_rel(opt, 1e-8);             // this would not apply to Globle search.
@@ -187,62 +196,20 @@ public :
     }
 };
 
-//  *cc is an array of {tc_lowbound, tc_upbound}
-//  *rr is an array of {ratio_lowbound, ratio_upbound}
-//  g_rcov defines a globle relative coverage of tumor and normal.
-//      This parameter determines the degree of deletion:
-//        
-// void getTC_Ratio(double* filter, int* depth, int* genotypes, double** tpm, double* pi,
-//         int* numOfObser, int* numOfStates,
-//         double* tc_range,  double* res_tc,
-//         double* DOA_range, double* res_DOA,
-//         double* del_range, double* res_del,
-//         double* g_rcov_range)
-// {
-//     vector<double> paras ;
-//     /// set the mean value as the initial
-//     double lb[2] ;             // lower bounds.
-//     double ub[2] ;              // upper bounds.
-//     lb[0] = tc_range[0];
-//     ub[0] = tc_range[1];
-//     lb[1] = DOA_range[0];
-//     ub[1] = DOA_range[1];
-//     double initTC  = (tc_range[0]  + tc_range[1])/2;
-//     double initDOA = (DOA_range[0] + DOA_range[1])/2;
-// 
-// 
-//         
-//     paras.push_back(initTC);
-//     paras.push_back(initDOA);
-//     TFunc ff (depth, genotypes, pi, tpm, filter, numOfObser, numOfStates, paras, *res_del);
-//     boundCon con1(depth, *numOfObser, *res_del, g_rcov_range, true );  // lower flag
-//     boundCon con2(depth, *numOfObser, *res_del, g_rcov_range, false ); // upper flag
-//     ff.constraints.push_back(&con1);
-//     ff.constraints.push_back(&con2);
-// 
-// 
-//     MaxLikelihood mm (&ff, lb, ub);
-//     mm.doOptimize();
-//     paras = ff.initParameters;
-//     *res_tc  = paras[0];
-//     *res_DOA = paras[1];
-//     Rprintf("\t @ [info] finish opt  tc = %f\t DOA = %f del = %f\n",
-//                 *res_tc, *res_DOA, *res_del);
-// }
 void getTC_Ratio_2(double* filter, int* depth, int* genotypes, double** tpm, double* pi,
         int* numOfObser, int* numOfStates,
         double* tc_range,  double* res_tc,
         double* DOA_range, double* res_DOA,
         double* del_range, double* res_del,
-        int optMethod)
+        int* ifSigAmplified,
+        int optMethod, double underate)
 {
     /// set the mean value as the initial
     double lb[3] ;             // lower bounds.
     double ub[3] ;              // upper bounds.
     double inc = 0.4;
 
-
-    if(optMethod == 0) {inc = DOA_range[1] - DOA_range[0] + 1;}
+    if(optMethod == 0) {inc = DOA_range[1] - DOA_range[0] + 0.01;}
 
     int divideRange = int( (DOA_range[1] - DOA_range[0]) / inc ) + 1;
 
@@ -258,8 +225,6 @@ void getTC_Ratio_2(double* filter, int* depth, int* genotypes, double** tpm, dou
 
         lb[0] = tc_range[0];
         ub[0] = tc_range[1];
-    //    lb[1] = DOA_range[0];
-    //    ub[1] = DOA_range[1];
         lb[1] = ss;
         ub[1] = ee;
         lb[2] = 0.000001;
@@ -273,8 +238,9 @@ void getTC_Ratio_2(double* filter, int* depth, int* genotypes, double** tpm, dou
         double initDel  = *res_del;
         if(optMethod)
         {
-            initTC = (lb[0] + ub[0]) /2;
-            initDOA = (lb[1] + ub[1]) /2;
+            initTC  = (lb[0] + ub[0]) /2;
+            /// initDOA = (lb[1] + ub[1]) /2;
+            initDOA = lb[1];
         }
 
 
@@ -288,21 +254,27 @@ void getTC_Ratio_2(double* filter, int* depth, int* genotypes, double** tpm, dou
         paras.push_back(initDel);
         double  rcov = get_rcov(depth, *numOfObser, initTC, initDOA, initDel);
 
-        TFunc ff (depth, genotypes, pi, tpm, filter, numOfObser, numOfStates, paras, initDel);
+        TFunc ff (depth, genotypes, pi, tpm, filter, numOfObser, numOfStates, paras, initDel, initDOA, underate);
         //boundCon con2(depth, *numOfObser, *res_del, g_rcov_range, false ); // upper flag
         //ff.constraints.push_back(&con1);
         //ff.constraints.push_back(&con2);
 
 
-        MaxLikelihood mm (&ff, lb, ub, 0);
+        MaxLikelihood mm (&ff, lb, ub, 1);
         mm.doOptimize();
         paras = ff.initParameters;
 
-        printf("\t @ current likelihood %f\n", ff.log_lik);
-        if(ff.log_lik > pre_log_like)
+
+
+//
+//
+//        printf("\t @ current likelihood %f : %f  -> %f : %f \n", init_lik, ploidy,  ff.log_lik, ff.initParameters[1]);
+
+        printf("\t@ tc = %f, ploidy=%f, loglik=%f\n",ff.initParameters[0], ff.initParameters[1], ff.log_lik);
+        if( ff.log_lik > pre_log_like)
         {
-            *res_tc  = paras[0];
-            *res_DOA = paras[1];
+            *res_tc  = ff.initParameters[0];
+            *res_DOA = ff.initParameters[1];
             pre_log_like = ff.log_lik;
         }
     }

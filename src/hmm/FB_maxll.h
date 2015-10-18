@@ -1,7 +1,7 @@
 /************************************************************************
  *  Author: Wenhan CHEN
  *  Date  : 22 Sep 2014
- *  Last_Modified : 12 Jun 2015 11:00:51
+ *  Last_Modified : 04 Sep 2015 01:17:36
  *  Description: This includes 
  *    1) Implementation of forward-backward algorithm.
  *    2) NLopt functions for calculation of tc against likelihood of the
@@ -21,15 +21,15 @@
 
 using namespace std;
 
-extern double logProb(unsigned int mi_n , unsigned int  di_n , unsigned int  mi_t , unsigned int  di_t,
-        double c, int genotype[]);
-extern double forward_backward (vector< vector<double> > &yll, 
-                              vector< vector<double> > &tpm,
-                              double *pi, bool do_filter, double *filter,
-                              vector< vector<double> > &alpha,
-                              vector< vector<double> > &beta,
-                              bool faster,
-                              bool print_info);
+/// extern double logProb(unsigned int mi_n , unsigned int  di_n , unsigned int  mi_t , unsigned int  di_t,
+///         double c, int genotype[], double underate);
+double forward_backward (vector< vector<double> > &yll, 
+                               vector< vector<double> > &tpm,
+                               double *pi, bool do_filter, double *filter,
+                               vector< vector<double> > &alpha,
+                               vector< vector<double> > &beta,
+                               bool faster,
+                               bool print_info);
 
 
 class  TFunc_test : public ObjectiveFunc
@@ -85,7 +85,7 @@ public:
                 g_i[0] = genotypes[i * 2];
                 g_i[1] = genotypes[i * 2 +1];
 
-                yll[i][m] = logProb(m_i, d_i, m_i_t, d_i_t, tc, g_i);
+                yll[i][m] = logProb(m_i, d_i, m_i_t, d_i_t, tc, g_i, 1);
             }
         }
         bool faster = false;
@@ -208,6 +208,7 @@ double forward_backward (vector< vector<double> > &yll,
                     t_beta_i_t  += pArithmetic::myExp(yll[j][t + 1] +  beta[j][t + 1] + tpm[i][j], "t_beta_i_t");
                 if (isnan(t_alpha_i_m) || isnan(t_beta_i_t))
                 {
+printf("%e, %e, %e \n", yll[i][m]     , alpha[j][m - 1] , tpm[j][i]);
                     Rprintf("t_alpha_i_m == nan");
                     exit(0);
                 }
