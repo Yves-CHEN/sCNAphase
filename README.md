@@ -2,12 +2,16 @@
 sCNAphase is an R package, designed for esitmating tumor copy number profile, tumor cellularity, tumor ploidy, based on whole genome sequencing (WGS) or whole exome sequencing (WES) data.
 # Requirements
   * R >= (3.1.2)
-  * boost-1.56
-  * NLOPT-2.42.
+  * Rcpp
+  * BH
+  * NLOPT
+  
 
 
 # Install
 R CMD INSTALL ./sCNAphase
+
+This only works when the Rcpp, BH, NLOPT are installed. Find the user manual for more information.
 
 # Prepare data
 To run the following R code, sCNAphase expects two sets of vcf files and a set of haps files.
@@ -44,4 +48,4 @@ produceDSKY(anaList= anaName, outDir = "test")  # The will generate the d.SKY pl
 
 ```
 # License
-sCNAphase is licensed under GPL-2.
+sCNAphase is licensed under L-GPL.
