@@ -24,11 +24,11 @@ of chromsomal, focal copy number deletions, gains or amplification. Generation o
 the quantsmooth R packages.
 }
 
-\usage{ genSegFile(anaList= anaName, outdir = "test") }
-\usage{produceDSKY(anaList= anaName, outdir = "test") }
+\usage{ genSegFile(anaList= anaName, outdir = "test") 
+produceDSKY(anaList= anaName, outdir = "test") }
 \arguments{
 \item{anaName}{Any label for the analysis. This should be the same as the anaName specified for function inferCNA}
-\item{outdir} {The output directory.}
+\item{outdir}{The output directory.}
 
 }
 \examples{

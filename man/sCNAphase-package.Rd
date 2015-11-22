@@ -16,7 +16,7 @@ To generate the input for sCNAphase, a pre-processing step is expected to produc
     \item Set H:  a hap file with the phase information for each germ-line SNP for each chromosome.   
   }
 Set N and Set T is generated from samtools mpileup.   \cr
-Set C is calculated based on Set A using \href{https://mathgen.stats.ox.ac.uk/genetics_software/shapeit/shapeit.html} {SHAPEIT}.
+Set C is calculated based on Set A using \href{https://mathgen.stats.ox.ac.uk/genetics_software/shapeit/shapeit.html}{SHAPEIT}.
 
 Given these files, sCNAphase generates the sCNAs profile at haploid level, the tumor purity and ploidy estimations through the inferCNA function. The sCNAs profile can be formated into segmentation files, vcf files or visualized in d.SKY plots.
 
