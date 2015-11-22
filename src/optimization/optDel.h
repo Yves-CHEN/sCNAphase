@@ -1,3 +1,7 @@
+#ifndef OPTDEL
+#define OPTDEL
+
+
 #include <R.h>
 #include <Rmath.h>
 #include "utils.h"
@@ -148,3 +152,4 @@ void getDel(double* filter, int* depth, int* genotypes, double** tpm, double* pi
 }
 
 
+#endif

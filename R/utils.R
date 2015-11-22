@@ -1,4 +1,5 @@
 
+library.dynam("nloptr", package = "nloptr", lib.loc=.libPaths())
 
 readVCF  <-  function (prefix, chr)
 {
@@ -32,150 +33,6 @@ readVCF  <-  function (prefix, chr)
     res
 }
 
-
-
-# -------------------------------------------------------------------
-#  tt specifies type of test: 2 for chiSq, 1 for betabinom
-getPValues <- function(tB, nB, tSum, nSum, thresh, c = 0, RCN = -1, tt=1)
-{
-    R  <- cbind(tB[tSum > 1], nB[tSum > 1])
-    S  <- cbind(tSum[tSum > 1], nSum[tSum > 1])
-    res            = rep(NA,length(tSum))
-
-    if(length(RCN) == 1 || RCN == -1)
-    {
-        Pi <- cbind(R[,1] / S[,1], R[,2] / S[,2])  # when tSum =0,  the /0 problem arises.
-    }
-    else
-    {
-        #                              (1 - c) * m_i_n + c * m_i_n * x
-        #     P = f(c, RCN) = ──────────────────────────────────────────────────────
-        #                      (1-c) * d_i_n + c * m_i_n * x + c *(d_i_n- m_i_n) * y
-        x = RCN[1]
-        y = RCN[2]
-
-        m_i_n  = R[,2]
-        d_i_n  = S[,2]
-        D = (1-c) * d_i_n + c * m_i_n * x + c *(d_i_n- m_i_n) * y
-        P  = ( (1-c) * m_i_n + c * m_i_n * x ) / as.double(D)
-        Pi <- cbind(R[,1] / S[,1], P)  # when tSum =0,  the /0 problem arises.
-    }
-    log       <- F
-    # pvs <- calcSigAll(Pi, R, S, thresh = -1, log = log, prop = 1, tt = tt)
-    pvs <- calcSigAll(Pi, R, S, thresh = thresh, log = log, prop = 1, tt = tt, c = c, RCN = RCN)
-    res[tSum > 1]  = pvs$all
-    res[tSum <= 1] = 0
-    list(all=res)
-}
-
-# -------------------------------------------------------------------------
-# range for the min, max PValue to be maped to the color range of heatmap.
-plotHeatm <- function (pvs, label, range=c(0, 20))
-{
-    xx = matrix (0, nrow =2, ncol = length(pvs$all))
-    colnames(xx) = label
-    xx [1,] = pvs$all
-    xx [2,] = pvs$all
-    logfun<-function(x) -log10(x)
-    .heatm(xx[,1:200], logfun, range = range)
-}
-
-
-# -------------------------------------------------------------------
-# This plots a single strip of vertical bars in different colors.
-plotBars <- function (pvs, coord, level, width=1, thick = 1,colScale=250, ct = 1, ceiling = 1)
-{
-    if (ct==1)
-    {
-        col=colorRampPalette(brewer.pal(9,"Blues"))(colScale)
-    } else {
-        col=colorRampPalette(brewer.pal(9,"YlOrRd"))(colScale)
-    }
-    for (num in 1:length(pvs))
-    {
-        aPV = pvs[num]
-        if(!is.na(aPV) && aPV < ceiling)
-        {
-        cidx = as.integer(colScale * aPV)
-        lines(rep(coord[num],2),seq(level,width+level),col=col[cidx], lwd=thick)
-        }
-    }
-}
-
-
-average <- function (coord, rSquare)
-{
-    res =rep(0,length(coord))
-    theNames =rep(0,length(coord))
-    sum = 0
-    pre = -1
-    idx = 1
-    count = 1
-    for (num in 1:length(res))
-    {
-        if(pre != coord[num])
-        {
-            res[idx] = sum /count
-            theNames[idx] = pre
-            idx = idx +1
-            count = 1
-            pre = coord[num]
-            sum =  rSquare[num] 
-
-        }
-        else
-        {
-            count = 1 + count
-            sum = sum + rSquare[num]
-        }
-    }
-    res[idx] = sum / count
-    theNames[idx] = pre
-    names(res) <- theNames
-    res[2:idx]
-}
-
-
-
-normalize <- function(data)
-{
-        min = min(data)
-    max = max(data)
-        as.double(data - min) / (max-min) 
-}
-
-
-
-
-# ---------------------------------------------------------------------------------------------------
-# Draw a heatmap in which color is determined by the scale of PValue (pvSet).
-#   pvSet is a matrix m sets of pvs.
-#   Each elements of pvs[m] is the pvalue at SNPi or Regioni which has a coordinate.
-#
-#   tt determines the way to draw the heatmap:
-#    1.  Draw with the bars along with actual coodinates of the SNPi.     (default)
-#    2.  Draw with the bars along with the order of the occurance of SNPi. 
-#
-plotHeatmap  <- function (coord, pvSet, tt=1, font=5, barWidth=1, barThick=1, cScale=250, xlab="", ylab="", main="")
-{
-    if (tt == 1)
-    {
-    endAt   = tail(coord, 1) + 40
-    startAt = head(coord, 1) - 40
-    # For just opening the canvas, otherwise line function won't work. The plot won't show in the graph.
-    plot(endAt,dim(pvSet)[1] +2, ylim=c(1,dim(pvSet)[1] +1), xlim=c(startAt ,endAt),  xlab=xlab, ylab=ylab, yaxt='n', ann=FALSE,  main=theTitle)
-
-    for (ii in 1:dim(pvSet)[1])
-    {
-        text(-40 , dim(pvSet)[1] +1 - ii +0.5, labels = rownames(pvSet)[ii], font=5, offset=1.5, adj=1)
-        plotBars(pvSet[ii,], coord,  dim(pvSet)[1] +1 - ii)
-    }
-    } else {
-        opts <- list(title = main, indexMatch = NULL, Colv=TRUE)
-        #.heatm(pvSet,  logfun = function(x){ x}, range = c(0,20), opts = opts, key=F )
-        .heatm(pvSet,  logfun = function(x){ x}, range = c(0,20), opts = opts )
-    }
-}
 
 # --------------------------------------------------------------------------------------------------
 #   Read in the frequency data includes the A,B allele frequences in tumor and control.
@@ -342,27 +199,7 @@ maxll <- function(tab,genotypes, tc)
        mll   = as.numeric(mll),
        PACKAGE = "sCNAphase"
        )
-  #  for(k in 1:(length(genotypes)/2))
-  #  {
-  #      sum = 0
-  #      x=genotypes[k*2-1]
-  #      y=genotypes[k*2]
-  #      for(n in 1:dim(tab)[1])
-  #      {
-  #         each = tab[n,]
-  #         prob= each$nB * x / ((each$nSum -each$nB) * y + each$nB * x)
-  #         if(prob ==0)
-  #         print(prob)
-  #         #sum = sum + each$tB * log(prob) + (each$tSum - each$tB) * log(1-prob)
-  #         sum = sum + log(pbinom(each$tB, each$tSum, prob))  
-  #      }
-
-  #      if(sum > mll)
-  #      {
-  #          mll = sum
-  #          state = k
-  #      }
-  #  }
+ 
     res$mll
 }
 
@@ -612,7 +449,9 @@ runForPloidy <-  function (anaName, preprocess, chrID, runHMM = T, method = "Bau
         bafThresh = quantile(abs(mnB/mnSum - 0.5), prob = 1 - bafClean, type = 1)
 
         print(sprintf("length of ml %d and mtB %d", length(ml), length(mtB)))
-        selIncluded = selIncluded & CN <= cnRange[2] & CN >= cnRange[1] & (mtSum / mnSum) < outlayerBound & abs(mnB/mnSum - 0.5) < bafThresh
+        selIncluded = selIncluded & CN <= cnRange[2] &
+                          CN >= cnRange[1] & (mtSum / mnSum) < outlayerBound &
+                          abs(mnB/mnSum - 0.5) < bafThresh
         print(sprintf("Downsampled %f from %d",
                       sum(selIncluded)/length(selIncluded),
                       length(selIncluded)))
@@ -655,159 +494,6 @@ runForPloidy <-  function (anaName, preprocess, chrID, runHMM = T, method = "Bau
 
 
 
-
-plotPred  <- function(fluctuation, nB,nSum, tB, tSum, fullLabel, genotypes, maxRes, method = "Baum_Welch", len, chrID)
-{
-
-    indexing<-function(idx) {as.numeric(names(idx))}
-
-    label    = indexing(fluctuation)
-
-    roundTo <- function(x, k) format(round(x, k), nsmall=k)
-    title = sprintf("copy_number.%s.merge%s.chr%s", method, len, chrID)
-    showBound <- function(boundaries) 
-    {
-
-        for (ii in 1:length(boundaries))
-        {
-            b = boundaries[ii]
-            lines(c(b, b), c(1, 7), col=3,  lty=4, lwd=3)
-            text(b , 1 , labels = ii, font=5,  pos = 3, family="sans")
-        }
-
-    }
-
-
-    ################################################################################################
-    #    Slide 1:     This shows relative  read depth given the degree of amplification and tumor
-    #                 cellularity.
-    ################################################################################################
-
-
-    sum_di_t = sum(tSum)
-    sum_di_n = sum(nSum)
-    rdTitle  = paste("Relative read depth",
-                     "tc", roundTo(maxRes$tc, 3),
-                     "DOA", roundTo(maxRes$DOA,3), sep="--")
-    plot(label, tSum, main=rdTitle, xlab="loci", ylab="")
-    plot(label, nSum, main=rdTitle, xlab="loci", ylab="")
-    plot(label, tSum/nSum * (sum_di_n * maxRes$DOA/sum_di_t), main=rdTitle,
-         xlab="loci", ylab="", ylim = c(0,5))
-    ratio = sum_di_n * maxRes$DOA * maxRes$tc / (sum_di_n * maxRes$DOA * maxRes$tc + (1 - maxRes$tc) * sum_di_n)
-    print(paste("ratio: ", ratio))
-    print(paste("reads: ", ratio * sum_di_t))
-    print(ratio*sum_di_t / (sum_di_n * maxRes$DOA * maxRes$tc))
-
-    
-    lines(c(min(label),max(label)),c(1/2, 1/2), col=3,  lty=4)
-    lines(c(min(label),max(label)),c(1,     1), col=3,  lty=4)
-    lines(c(min(label),max(label)),c(1.5, 1.5), col=3,  lty=4)
-    lines(c(min(label),max(label)),c(2,     2), col=3,  lty=4)
-    lines(c(min(label),max(label)),c(2.5, 2.5), col=3,  lty=4)
-    lines(c(min(label),max(label)),c(3,     3), col=3,  lty=4)
-    lines(c(min(label),max(label)),c(3.5, 3.5), col=3,  lty=4)
- 
-
-    ################################################################################################
-    #    Slide 2:     This shows the maternal allelic freqency plot colored by copy
-    #          numbers.
-    ################################################################################################
-
-    copyNum = genotypes[maxRes$hidden.states * 2] + 
-       genotypes[maxRes$hidden.states * 2 -1]
-    plot(label, tB/tSum , col=copyNum, pch=4, xlab= "loci", ylab="Maternal Allelic Frequency", main=title)
-    lines(c(min(label),max(label)),c(1/2, 1/2), col=3,  lty=4)
-    lines(c(min(label),max(label)),c(2/3, 2/3), col=3,  lty=4)
-    lines(c(min(label),max(label)),c(3/4, 3/4), col=3,  lty=4)
-    lines(c(min(label),max(label)),c(1/3, 1/3), col=3,  lty=4)
-    lines(c(min(label),max(label)),c(1/4, 1/4), col=3,  lty=4)
-    lines(c(min(label),max(label)),c(1/5, 1/5), col=3,  lty=4)
-    lines(c(min(label),max(label)),c(4/5, 4/5), col=3,  lty=4)
-    lines(c(min(label),max(label)),c(1/6, 1/6), col=3,  lty=4)
-    lines(c(min(label),max(label)),c(5/6, 5/6), col=3,  lty=4)
-    ################################################################################################
-    #    Slide 3:      This shows the maternal allelic freqency plot colored by copy
-    #          numbers.
-    ################################################################################################
-
-
-    plot(label, genotypes[maxRes$hidden.states * 2 -1] / copyNum, col = copyNum,
-         pch=4, xlab = "pos", ylab = "genotype states",  main=title,  xaxt = "n")
-
-    lines(c(min(label),max(label)),c(1/2, 1/2), col=3,  lty=4)
-    lines(c(min(label),max(label)),c(2/3, 2/3), col=3,  lty=4)
-    lines(c(min(label),max(label)),c(3/4, 3/4), col=3,  lty=4)
-    lines(c(min(label),max(label)),c(1/3, 1/3), col=3,  lty=4)
-    lines(c(min(label),max(label)),c(1/4, 1/4), col=3,  lty=4)
-    lines(c(min(label),max(label)),c(1/5, 1/5), col=3,  lty=4)
-    lines(c(min(label),max(label)),c(4/5, 4/5), col=3,  lty=4)
-    lines(c(min(label),max(label)),c(1/6, 1/6), col=3,  lty=4)
-    lines(c(min(label),max(label)),c(5/6, 5/6), col=3,  lty=4)
-
-    legend("topleft", inset=.05, title="copy number", legend=c(1:10), fill=c(1:10))
-
-
-    #if(exists("breakPoints"))   showBound(breakPoints)
-    ################################################################################################
-    #     Slide 4:     This shows the cn states in comparision with climat.
-    ################################################################################################
-
-    plot(label, copyNum,
-         pch=4, xlab = "pos", ylab = "CN states",  main=title,  xaxt = "n")
-
-    #if(exists("breakPoints"))   showBound(breakPoints)
-    #axis(side = 1, at = seq(1, length(label), by = length(label)/15), 
-    #     labels = label[seq(1, length(label), by = length(label)/15)])
-    #maxRes = segHMM2(rbind(nB,nSum,tB,tSum), length(RCNs$RCN), genotypes, tc = 0.001, maxiter=30,fix_tc=T)
-    breakPoints = c()
-    preState = -1
-    for(i in 1:length(maxRes$hidden.states))
-    {
-
-        state = copyNum[i]
-        if(state != preState)
-        {
-            breakPoints[length(breakPoints) +1] =i
-            preState = state
-        }
-
-        lines(fullLabel[i, ], c(state,state),  col=3,  lty=1,lwd=5)
-    }
-
-    length(breakPoints)
-    print(breakPoints[1:2])
-    print(label[breakPoints[1:2]])
-    #axis(side = 1, at = label[breakPoints], labels = round((as.integer(label[breakPoints])/1e+6), digit=1))
-
-
-    #************************************************************************
-    #   loading climat
-    #************************************************************************
-
- ###    climat=read.table("./climat/G15511_HCC1143_1_sorted_chr8_alleleDepth.results", skip=12, header=T)
- ###    climat$StartPos
- ###    climat$EndPos
- ###    climat$CN
- ###    for(i in 1:length(climat$StartPos))
- ###    {
- ###        lines(c(climat$StartPos[i], climat$EndPos[i]), 
- ###              c(climat$CN[i]+0.1,climat$CN[i]+0.1), 
- ###              col=2,  lty=1,lwd=5)
- ###    }
-
-
-
-    genoLabel = c("A", "AB", "ABB", "ABBB", "ABBBB" )
-    #genoLabel = c("M", "MP", "MPP", "MPPP", "MPPPP" )
-    for(ii in 1:length(genoLabel))
-    {
-
-        text(-40 , ii , labels = genoLabel[ii], font=5, offset=10.5 , adj=1)
-    }
-    legend("topleft", inset=.05, title="Methods", c("Climat","mine"), fill=c(2,3))
-
-    #axis(side = 1, at = seq(1, length(label), by = as.integer(length(label)/15)), labels = label[seq(1, length(label), by = as.integer(length(label)/15))])
-}
 
 
 
@@ -950,7 +636,6 @@ plotMAF <- function(pos, baf, prange=1, LDdata="", interval=1,  title="test", ce
 #    because the transition probility needs to be summed on the probility (not logProb).
 #    The sum will be 0, and an error occurs when divide 0.
 #    Fix_tc determine if tc need to be estimated. If T, tc will be used as an initial guess.
-
 segHMM2  <- function(allelicDepth, k, genotypes,  tc = 0.5, fix_tc = F, diag.prob = 0.9, maxiter = 10, eps = 0.0000001, DOA = 1.5, print.info = FALSE, method="Baum_Welch", DOA_range=c(1, 1.5), underate=1, tpmType =1)
 {
     # Start the clock!
@@ -1092,7 +777,7 @@ calcGC  <-  function(chrID, seqFile, winSize, pos)
 
 
 
-inferCNA  <- function(anaName, nPrefix, tPrefix, chroms, doPhase = T, forceRead=F, maxCopyNum=11, mlen = 30, maxiter = 5, doFilter = F, ploidy = c(1.0, 1.4), fakeNormal = F, underate = 1, tpmType=1, runHMM = T, allelicMapability = F, reRun = T, method = "Baum_Welch")
+inferCNA  <- function(anaName, nPrefix, tPrefix, chroms, doPhase = T, forceRead=F, maxCopyNum=11, mlen = 30, maxiter = 5, doFilter = F, ploidy = c(1.0, 1.4), fakeNormal = F, underate = 1, tpmType=1, runHMM = T, allelicMapability = F, reRun = T, method = "Baum_Welch", generateLog = T)
 {
     preprocess="phased"
     g_rcov = 0.5
@@ -1227,10 +912,6 @@ inferCNA  <- function(anaName, nPrefix, tPrefix, chroms, doPhase = T, forceRead=
     outfile=paste(doPhase, anaName, chrID, preprocess, ".pdf", sep=".")
     pdf(file=outfile, width=24, height=6, title=outfile)
 
-
-
-
-
     #************************************************************************
     #                 Merging (state shifting detection)
     #************************************************************************
@@ -1240,12 +921,6 @@ inferCNA  <- function(anaName, nPrefix, tPrefix, chroms, doPhase = T, forceRead=
               tc=0.99,
               len = mlen)  #  Merge the allelic depth and mind the allelic depth consistency.
 
-
-    if(doFilter == T)
-    {
-        mergedData = filtering (mergedData, -80)
-    }
-
     fluctuation = mergedData[["fluctuation"]]
     fullLabel   = mergedData[["fullLabel"]]
     mergedDepth = mergedData[["depths"]]
@@ -1254,10 +929,7 @@ inferCNA  <- function(anaName, nPrefix, tPrefix, chroms, doPhase = T, forceRead=
     nB   = ceiling(mergedDepth$nB)
     tSum = ceiling(mergedDepth$tSum)
     nSum = ceiling(mergedDepth$nSum)
-
     names(tB) = names(fluctuation)
-
-  
 
     #************************************************************************
     #                 Remove germ-line CNVs
@@ -1323,11 +995,13 @@ inferCNA  <- function(anaName, nPrefix, tPrefix, chroms, doPhase = T, forceRead=
         similiarity <- function(aRes, tStates ) {sum(aRes$hidden.states[selIncluded] == tStates)}
         trueMaxIdx = which.max(unlist(lapply(allRes, similiarity, tStates = res$hidden.states)))
         maxRes = allRes[[trueMaxIdx]]
-        save(nB,nSum, tB, tSum, label, fullLabel, allRes,
-             likelihoods, ml, selIncluded, file=dataFile)
+        save(unmergedDepth, chroms, nB,nSum, tB, tSum, label, fullLabel, allRes, mlen, maxRes, gap, nPrefix, tPrefix,
+                         likelihoods, ml, selIncluded, file=dataFile)
+
     } else
     {
-        save(nB,nSum, tB, tSum, label, fullLabel, allRes, file=dataFile)
+        save(unmergedDepth, chroms, nB,nSum, tB, tSum, label, fullLabel, allRes, mlen, maxRes, gap, nPrefix, tPrefix,
+                         file=dataFile)
     }
 
 
@@ -1335,39 +1009,40 @@ inferCNA  <- function(anaName, nPrefix, tPrefix, chroms, doPhase = T, forceRead=
 
     cat(paste ("Degree of Amplification : ", maxRes$DOA, sep=":"))
     cat(paste ("Predict tumor cellularity : ", maxRes$tc, maxRes$log.lik, sep=":"))
-    plotPred (fluctuation, nB,nSum, tB, tSum, fullLabel, genotypes, maxRes, len=mlen, chrID=chrID)
 
-    depths = rbind(nB,nSum,tB,tSum)
-    T = dim(depths)[2]
+    if(generateLog)
+    {
+        plotPred (fluctuation, nB, nSum, tB, tSum,
+                      fullLabel, genotypes, maxRes, len=mlen, chrID=chrID)
+        depths = rbind(nB,nSum,tB,tSum)
+        T = dim(depths)[2]
+        prob_RD=rep(0.1, T)
+        prob_AD=rep(0.1, T)
+        geno = maxRes$genotypes
+        cnStates = maxRes$hidden.states
+        cns = geno[maxRes$hidden.states*2-1] +  geno[maxRes$hidden.states*2]
+        tc = maxRes$tc
+        DOA = maxRes$DOA
+        res <- .C("emissionDist_Debug",
+                  depths = as.integer(as.vector(depths)),
+                   T = as.integer(T),
+                    geno = as.integer(geno),
+                    k = as.integer( length(geno)/2),
+                    cnStates = as.integer(cnStates),
+                    tc = as.double(tc),
+                    DOA = as.double(DOA), 
+                    prob_RD = as.double(prob_RD),
+                    prob_AD = as.double(prob_AD),
+                    underate = underate,
+                    PACKAGE="sCNAphase"   
+                    )
 
-    prob_RD=rep(0.1, T)
-    prob_AD=rep(0.1, T)
-
-    geno = maxRes$genotypes
-    cnStates = maxRes$hidden.states
-    cns = geno[maxRes$hidden.states*2-1] +  geno[maxRes$hidden.states*2]
-    tc = maxRes$tc
-    DOA = maxRes$DOA
-
-    res <- .C("emissionDist_Debug",
-              depths = as.integer(as.vector(depths)),
-               T = as.integer(T),
-                geno = as.integer(geno),
-                k = as.integer( length(geno)/2),
-                cnStates = as.integer(cnStates),
-                tc = as.double(tc),
-                DOA = as.double(DOA), 
-                prob_RD = as.double(prob_RD),
-                prob_AD = as.double(prob_AD),
-                underate = underate,
-                PACKAGE="sCNAphase"   
-                )
-
-    col = rep(1, length(cns))
-    col [cns>8] = 2
-    plot(res$prob_AD, pch = 4, col = col)
-    plot(res$prob_RD, pch = 4, col = col)
-    save(file="prob.dat", res)
+        col = rep(1, length(cns))
+        col [cns>8] = 2
+        plot(res$prob_AD, pch = 4, col = col)
+        plot(res$prob_RD, pch = 4, col = col)
+        save(file="prob.dat", res)
+    }
     dev.off()
 }
 

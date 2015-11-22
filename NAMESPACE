@@ -1,3 +1,2 @@
-useDynLib(libnlopt)
 useDynLib(sCNAphase, maxll_improv, Baum_Welch)
 exportPattern("^[^\\.]")

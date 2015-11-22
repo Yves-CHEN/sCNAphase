@@ -1,7 +1,7 @@
 /************************************************************************
  *  Author: Wenhan CHEN
  *  Date  : 27 Oct 2014
- *  Last_Modified : 17 Oct 2015 16:28:37
+ *  Last_Modified : 02 Nov 2015 10:35:18
  *  Description: This is a test for applying same optimazation but on depth.
   *
  *    NLopt package is MIT implementation of a set of optimization algorithms.
@@ -9,6 +9,9 @@
  *      http://ab-initio.mit.edu/wiki/index.php/NLopt_Algorithms#BOBYQA
  * 
 ************************************************************************/
+
+#ifndef MLL
+#define mll
 
 #include <R.h>
 #include <Rmath.h>
@@ -286,3 +289,4 @@ void getTC_Ratio_2(double* filter, int* depth, int* genotypes, double** tpm, dou
                 *res_tc, *res_DOA, *res_del);
 }
 
+#endif

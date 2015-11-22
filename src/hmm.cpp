@@ -8,7 +8,6 @@
 #include <algorithm>
 #include "hmm/viterbi_maxll.h"
 #include "hmm/FB_maxll.h"
-//#include "bamUtils/bamReader.h"
 #include "optimization/mll.h"
 #include "distribution/utils.h"
 #include "likelihood.h"
@@ -29,7 +28,16 @@ extern void calcLikelihood ( int* depths, int* seq_len, int* genotypes, int* _k,
 extern void maxll (int* tab, int* num_n, int* genotypes, int* num_k,double* cc, int* state, double* max_ll);
 extern void maxll_improv (int* tab, int* num_n, int* genotypes, int* num_k, double* cc, int* state, double* max_ll);
 extern void emissionDist_Debug(int* depths, int* T, int* genotypes, int* cnStates, double* tc, double* DOA, double* prob_RD, double* prob_AD, double* underate);
- 
+
+
+extern   void
+     cnvPoly(int *seq_len, int *_k, int* depths,
+            int* genotypes, double* tc, double *TPM, double *pi, int *maxiter,
+            double *eps, double *_log_lik, double *filter,
+            int *hidden_states, double* prob, bool* fix_tc,
+            double* DOA, double* DOA_range, int* ifSigAmplified, double* underate, bool *print_info);
+
+
 
 
 //   extern "C"

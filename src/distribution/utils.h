@@ -1,7 +1,7 @@
 /************************************************************************
  *  Author: Wenhan CHEN
  *  Date  : 22 Sep 2014
- *  Last_Modified : 17 Oct 2015 16:32:08
+ *  Last_Modified : 02 Nov 2015 11:02:38
  *  Description: This includes 
  *    1) Boost implementation of Binomial_distribution.
  *    2) My implementation of log and exp at the long double precision.
@@ -14,10 +14,11 @@
 
 
 #include <omp.h>
-#include <string>
 #include <fstream>
 #include <R.h>
 #include "boost/math/distributions/binomial.hpp"
+
+#include "pArithmetic.h"
 
 #include <sys/times.h>
 
@@ -46,46 +47,6 @@ int logging(T con, const char* filename)
     return 0;
 }
 
-
-
-/// Handle precision of log and exp operations when the value is tiny.
-class pArithmetic
-{
-    public :
-    static const long double logInf_ld ;
-    static const long double Inf_ld    ;
-
-    static const double logInf ;
-    static const double Inf    ;
-
-    ///  This gives a trancation warning message if the value is too small for expl(logInf).
-    ///  The return value is double, because the smallest value in exp space is e-2500, which 
-    ///  can be represented in double in log space.
-    inline static double myLog(long double val, string who)
-    {
-        if(val < Inf_ld)
-        {
-            if(printWarning)
-                Rprintf("[warning] trancating value when log(%Le) performing %s.\n", val, who.c_str());
-            return logInf_ld;
-        }
-        return logl(val);
-    }
-    inline static long double myExp(double val, string who)
-    {
-        if(val < logInf_ld)
-        {
-            if(printWarning)
-                Rprintf("[warning] exp(%e) generates a 0 performing %s.\n", val, who.c_str());
-            return Inf_ld;
-        }
-        return expl(val);
-    }
-};
-const long double pArithmetic::logInf_ld = logl(1.000e-4500L) ;
-const long double pArithmetic::Inf_ld    = expl(logl(1.000e-4500L)) ;
-const double pArithmetic::logInf = log(1e-310) ;
-const double pArithmetic::Inf    = exp(log(1e-310)) ;
 
 
 /* --------------------------------------------
