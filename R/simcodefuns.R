@@ -474,17 +474,23 @@ calcEmissAll<-function(M,Cseq,paramsCN,noiter=1,plot=F,alpha = 10, br = 1,priorw
 ##log if the values are logp
 p2chisq<-function(p,log=F) qchisq(p,df =1,lower.tail=F,log.p = log)
 
-
 ## calcs cumulative significance statistic
-cumulSig<-function(pvs,title, plot=T,log = TRUE, log1 = FALSE){
-  #pv = if(log) exp(pvs$right) else pvs$right
-  pv = if(log) exp(pvs$all) else pvs$all
-
-
-p =   pchisq(sum(p2chisq(pvs$all,log = log)),length(pvs$all),lower.tail=F,log = log1)
-print("Start plotting ...")
-  if(plot) logQQ(pv,conf = c(0.025,0.975), title=paste(title,"pv=",sprintf("%5.2g",p)))
- p
+cumulSig<-function(pvs,title, plot=T, ggplotEnable=T, log = TRUE, log1 = FALSE, ymax=NA)
+{
+    pv = if(log) exp(pvs$all) else pvs$all
+    p = pchisq(sum(p2chisq(pvs$all,log = log)),length(pvs$all),lower.tail=F,log = log1)
+    if(plot)
+    {
+        print("Start plotting ...")
+        if(ggplotEnable == T)
+        {
+            p <- ggplotQQ(pv, conf = c(0.025,0.975), title=title, ymax=ymax)
+        } else
+        {
+            logQQ(pv,conf = c(0.025,0.975), title=paste(title,"pv=",sprintf("%5.2g",p)))
+        }
+    }
+    p
 }
 
 merge<-function(tab,len=100){

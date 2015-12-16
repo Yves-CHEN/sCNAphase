@@ -1,4 +1,59 @@
 require(stats)
+require(ggplot2)
+require(ggExtra)
+
+
+ggplotQQ <- function(pvs, conf=NA, yEqx=TRUE, cols=NA, pointcols=NA,colours=1, title=expression(paste("-log"[10],"QQ")), ymax=NA)
+{
+    pv=pvs[!is.na(pvs)]
+    if(sum(pv==0)>0)
+    {
+      print("Warning: Ommitting pvalue=0")
+      pv=pv[pv!=0]
+    }
+    pv=sort(pv)
+    np=length(pv)
+
+    if(is.na(pointcols))
+    {
+        pointcols=rep(1,np)
+    }
+    if(is.na(sum(cols)))
+    {
+        if(yEqx)
+          cols=1:(length(conf)+1)+1
+        else
+          cols=1:length(conf)+2
+    }
+
+    expec=rep(NA, np)
+    for(s in 1:np)
+      expec[s]=s/(np+1)
+
+    plotpv=rep(FALSE, np)
+    plotpv[1:min(1000,length(pv))]=TRUE
+    plotpv[floor(10^(runif(n=4000,min=0,max=log10(length(pv)))))]=TRUE
+
+    expec=expec[plotpv]
+    pv=pv[plotpv]
+    if(is.na(ymax))
+        ymax=-log10(min(pv))
+
+    dd <- as.data.frame( cbind(-log10(expec) , -log10(pv)) )
+    colnames(dd)  <- c("exp","obs")
+    qq <- ggplot2::ggplot(dd, aes(x=exp, y=obs))+ geom_point()  +  geom_rug(col="darkred",alpha=.1)
+        
+    qq <- qq + ylab(expression(paste("-log"[10]," (Observed p-value)"))) + xlab(expression(paste("-log"[10]," (Expected p-value)"))) + ggtitle(title)
+
+
+    ##dd2  <-  as.data.frame(cbind(-log10(expec), -log10(Obs)))
+    qq  <- qq + geom_abline(colour = "red", size = 1)
+    qq
+    #dev.off()
+}
+
+
+
 
 
 qb<-function(np,conf){
