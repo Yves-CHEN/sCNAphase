@@ -26,7 +26,6 @@
 
 
 
-
 plotPred  <- function(fluctuation, nB,nSum, tB, tSum, fullLabel, genotypes, maxRes, method = "Baum_Welch", len, chrID)
 {
     indexing<-function(idx) {as.numeric(names(idx))}
@@ -150,6 +149,7 @@ plotPred  <- function(fluctuation, nB,nSum, tB, tSum, fullLabel, genotypes, maxR
 # 1M
 genseg <-function (copyNum, mCN, label, fullLabel, dir, chrID, distThresh = 1000000 )
 {
+
     preState = -1
     seg = c()
     theCN = c()
@@ -192,7 +192,7 @@ genseg <-function (copyNum, mCN, label, fullLabel, dir, chrID, distThresh = 1000
     tab
 }
 
-genSegFile  <- function(anaList = c("5","20","40","60", "80", "95", "p"), outdir = "./")
+genSegFile  <- function(anaList = c("5","20","40","60", "80", "95", "p"), outdir = "./", ifload = T)
 {
 
     mSmooth <- function(pos, win=7)
@@ -211,7 +211,7 @@ genSegFile  <- function(anaList = c("5","20","40","60", "80", "95", "p"), outdir
         datFile = sprintf("res.%s.phased.chr.W.dat", eachAna)
         if(! file.exists(datFile))
             stop(sprintf("Excepting dat file : %s", datFile))
-        load(datFile)
+        if(ifload == T) load(datFile)
         breakPoints = unmergedDepth$breakPoints
         names(breakPoints) = chroms
         clean = 0.01
@@ -221,14 +221,12 @@ genSegFile  <- function(anaList = c("5","20","40","60", "80", "95", "p"), outdir
         pos=as.numeric(names(tB))
         gwTab = as.data.frame(matrix(NA, ncol=4, nrow = 0))
         colnames(gwTab) = c("chr", "start","end","CN")
-
         for (idx in 1:length(chroms))
         {
             chrID = as.character(chroms[idx])
             sel = breakPoints[idx] < pos & pos <breakPoints[idx +1]
             FL=as.numeric(fullLabel[sel,])
             dim(FL)  = dim(fullLabel[sel,])
-            #gap   = 100000
             FL[,1] = as.numeric(fullLabel[,1][sel]) - breakPoints[chrID] -gap
             FL[,2] = as.numeric(fullLabel[,2][sel]) - breakPoints[chrID] -gap
             label=pos[sel] - breakPoints[chrID]
@@ -243,14 +241,12 @@ genSegFile  <- function(anaList = c("5","20","40","60", "80", "95", "p"), outdir
             if(length(CN) > 2)
             {
                 tab = genseg(CN, mCN, label, FL, chrID=chrID, dir=outdir)
-                #print(head(tab))
             } else
             {
                 print(sprintf("chr%d is gone", chrID ))
             }
             gwTab = rbind(gwTab, tab)
         }
-        
         gwFile = sprintf("%s/cna.%s.tumor.W.csv", outdir, eachAna) 
         print(sprintf("Generating file %s", gwFile))
         write.table(gwTab, file=gwFile, sep="\t", quote=F, row.names=F)
@@ -338,7 +334,7 @@ produceCytoPlot  <- function(anaList = c("5","20","40","60", "80", "95", "p"), o
 }
 
 
-produceDSKY  <- function(anaList = c("5","20","40","60", "80", "95", "p"), outDir = "./")
+produceDSKY  <- function(anaList = c("5","20","40","60", "80", "95", "p"), outDir = "./", ifload = T)
 {
     exist = require(viewGenome)
     if(!exist)
@@ -359,7 +355,7 @@ produceDSKY  <- function(anaList = c("5","20","40","60", "80", "95", "p"), outDi
         datFile = sprintf("res.%s.phased.chr.W.dat", eachAna)
         if(! file.exists(datFile))
             stop(sprintf("Excepting dat file : %s", datFile))
-        load(datFile)
+        if(ifload == T) load(datFile)
         breakPoints = unmergedDepth$breakPoints
         names(breakPoints) = chroms
         clean = 0.01
