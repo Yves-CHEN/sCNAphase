@@ -1,5 +1,4 @@
 
-library.dynam("nloptr", package = "nloptr", lib.loc=.libPaths())
 
 readVCF  <-  function (prefix, chr)
 {
@@ -320,8 +319,7 @@ filtering <- function (data, thresh)
     fluctuation = data[["fluctuation"]]
     fullLabel   = data[["fullLabel"]]
     depths      = data[["depths"]]
-indexing<-function(idx) {as.numeric(names(idx))}
-
+    indexing    <- function(idx) {as.numeric(names(idx))}
     selection =  fluctuation > thresh 
     #selection =  fluctuation > thresh & indexing(fluctuation) > 88000000 & indexing(fluctuation) < 89000000
     #dim(fullLabel) = c(2,length(fullLabel)/2)
@@ -404,7 +402,6 @@ runForPloidy <-  function (anaName, preprocess, chrID, runHMM = T, method = "Bau
                            genotypes, maxiter=5, fullLabel = fullLabel, DOA_range = c(1.0, 1.4),
                            underate = 1, tpmType = 1, reRun = T, mlen = 40, unmergedDepth)
 {
-
         mtB    = tB
         mnB    = nB
         mtSum  = tSum
@@ -636,7 +633,7 @@ plotMAF <- function(pos, baf, prange=1, LDdata="", interval=1,  title="test", ce
 #    because the transition probility needs to be summed on the probility (not logProb).
 #    The sum will be 0, and an error occurs when divide 0.
 #    Fix_tc determine if tc need to be estimated. If T, tc will be used as an initial guess.
-segHMM2  <- function(allelicDepth, k, genotypes,  tc = 0.5, fix_tc = F, diag.prob = 0.9, maxiter = 10, eps = 0.0000001, DOA = 1.5, print.info = FALSE, method="Baum_Welch", DOA_range=c(1, 1.5), underate=1, tpmType =1)
+segHMM2  <- function(allelicDepth, k, genotypes,  tc = 0.5, fix_tc = F, diag.prob = 0.9, maxiter = 10, eps = 0.0000001, DOA = 1.5, combineRdAd = FALSE, method="Baum_Welch", DOA_range=c(1, 1.5), underate=1, tpmType =1)
 {
     # Start the clock!
     ptm <- proc.time()
@@ -672,7 +669,6 @@ segHMM2  <- function(allelicDepth, k, genotypes,  tc = 0.5, fix_tc = F, diag.pro
     if(tpmType == 3)
     {
         print("Using symetric states TPM")
-        diag.prob = 0.40
 
         # redundency defined as the states reverse complement. e.g. 1,0  -  0,1
         numOfNonRedundent = 0
@@ -682,6 +678,8 @@ segHMM2  <- function(allelicDepth, k, genotypes,  tc = 0.5, fix_tc = F, diag.pro
             if(num %% 2 !=0) numOfNonRedundent = (num + 1) / 2 + numOfNonRedundent
             else    numOfNonRedundent = (num) / 2 + numOfNonRedundent
         }
+        t = 30      # 12 times
+        diag.prob = t / (numOfNonRedundent -1 +t)
         off.prob  = (1 - diag.prob)/ ( numOfNonRedundent -1)
         aSymPenalty = 0.1
         for (i in c(1:k))
@@ -747,7 +745,7 @@ segHMM2  <- function(allelicDepth, k, genotypes,  tc = 0.5, fix_tc = F, diag.pro
                DOA_range=as.double(DOA_range),
                ifSigAmp = as.integer(ifSigAmp),
                as.double(underate),
-               as.logical(print.info),
+               as.logical(combineRdAd),
                #as.double(g_rcov),
                PACKAGE = "sCNAphase"
                )
@@ -777,7 +775,7 @@ calcGC  <-  function(chrID, seqFile, winSize, pos)
 
 
 
-inferCNA  <- function(anaName, nPrefix, tPrefix, chroms, doPhase = T, forceRead=F, maxCopyNum=11, mlen = 30, maxiter = 5, doFilter = F, ploidy = c(1.0, 1.4), fakeNormal = F, underate = 1, tpmType=1, runHMM = T, allelicMapability = F, reRun = T, method = "Baum_Welch", generateLog = T)
+inferCNA  <- function(anaName, nPrefix, tPrefix, chroms, doPhase = T, forceRead=F, maxCopyNum=11, mlen = 30, maxiter = 5, doFilter = F, ploidy = c(1.0, 1.4), fakeNormal = F, underate = 1, tpmType=1, runHMM = T, allelicMapability = F, reRun = T, method = "Baum_Welch", generateLog = T, runit = T)
 {
     preprocess="phased"
     g_rcov = 0.5
@@ -844,16 +842,11 @@ inferCNA  <- function(anaName, nPrefix, tPrefix, chroms, doPhase = T, forceRead=
         names(nB)   = (label)  
         names(tSum) = (label)
         names(nSum) = (label)
-
-
-      
         if(fakeNormal)
         {
             fit2    <- lm(depthCombine~poly(gcCombine,7))
             expectedDepth  <- predict(fit2)
-
             save(file="gc.dat", tB,tSum,nB,nSum, fit2, gcCombine, depthCombine)
-
             pdf(file=sprintf("%s.gcEffect.pdf", anaName))
             plot(gcCombine, predict(fit2), type="p", col="red", lwd=1)
             dev.off()
@@ -900,7 +893,6 @@ inferCNA  <- function(anaName, nPrefix, tPrefix, chroms, doPhase = T, forceRead=
     #************************************************************************
     genotypes = genGenotypes(maxCopyNum) # all the possible genotypes with copy number < maxCopyNum
     genotypes = c(0, 0, genotypes)       # adding doulbe deletion
-
 
     #************************************************************************
     #                 Merging (state shifting detection)
@@ -953,6 +945,9 @@ inferCNA  <- function(anaName, nPrefix, tPrefix, chroms, doPhase = T, forceRead=
     #************************************************************************
     #                 CN state prediction 
     #************************************************************************
+    
+    if(runit == T)
+    {
     allRes = inferStates  (anaName, preprocess, chrID,  method = method, 
                            nB,nSum, tB, tSum,
                            genotypes, maxiter=maxiter, fullLabel = fullLabel, DOA_range = ploidy,
@@ -963,11 +958,18 @@ inferCNA  <- function(anaName, nPrefix, tPrefix, chroms, doPhase = T, forceRead=
 
     extract <- function(aList, field){ aList[field] }
     logLiks = unlist( sapply(allRes, extract, field = "log.lik"))
-    maxRes = allRes [[ which(max(logLiks) == logLiks)]]
+    maxRes = allRes [[ which(max(logLiks) == logLiks)[1] ]]
 
 
     dataFile = paste("res", anaName, preprocess,"chr", chrID,"dat", sep=".")
     label = as.numeric(names(tB))
+    } else {
+        dataFile = paste("res", anaName, preprocess,"chr", chrID,"dat", sep=".")
+        load(dataFile)
+
+
+    }
+
     if(reRun)
     {
         likelihoodEst = runForPloidy  (anaName, preprocess, chrID,  method = method, 
@@ -995,17 +997,14 @@ inferCNA  <- function(anaName, nPrefix, tPrefix, chroms, doPhase = T, forceRead=
         similiarity <- function(aRes, tStates ) {sum(aRes$hidden.states[selIncluded] == tStates)}
         trueMaxIdx = which.max(unlist(lapply(allRes, similiarity, tStates = res$hidden.states)))
         maxRes = allRes[[trueMaxIdx]]
-        save(unmergedDepth, chroms, nB,nSum, tB, tSum, label, fullLabel, allRes, mlen, maxRes, gap, nPrefix, tPrefix,
-                         likelihoods, ml, selIncluded, file=dataFile)
+        save(unmergedDepth, chroms, nB,nSum, tB, tSum, label, fullLabel, allRes, mlen, maxRes,
+             gap, nPrefix, tPrefix, likelihoods, ml, selIncluded, file=dataFile)
 
     } else
     {
-        save(unmergedDepth, chroms, nB,nSum, tB, tSum, label, fullLabel, allRes, mlen, maxRes, gap, nPrefix, tPrefix,
-                         file=dataFile)
+        save(unmergedDepth, chroms, nB,nSum, tB, tSum, label, fullLabel, allRes,
+              mlen, maxRes, gap, nPrefix, tPrefix, file=dataFile)
     }
-
-
-
 
     cat(paste ("Degree of Amplification : ", maxRes$DOA, sep=":"))
     cat(paste ("Predict tumor cellularity : ", maxRes$tc, maxRes$log.lik, sep=":"))

@@ -18,7 +18,9 @@ The vcf files and the file with the phase information has to be named in the for
 
 
 \usage{
-inferCNA  <- function(anaName, nPrefix, tPrefix, chroms, doPhase = T, forceRead=F, maxCopyNum=12, mlen = 30, maxiter = 1, ploidy = seq(1, 2.5, 0.1), allelicMapability = F, generateLog = T)
+inferCNA  <- function(anaName, nPrefix, tPrefix, chroms, doPhase = T, 
+        forceRead=F, maxCopyNum=12, mlen = 30, maxiter = 1,
+        ploidy = seq(1, 2.5, 0.1), allelicMapability = F, generateLog = T)
 }
 \arguments{
 

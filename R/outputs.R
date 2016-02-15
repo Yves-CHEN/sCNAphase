@@ -26,6 +26,7 @@
 
 
 
+
 plotPred  <- function(fluctuation, nB,nSum, tB, tSum, fullLabel, genotypes, maxRes, method = "Baum_Welch", len, chrID)
 {
     indexing<-function(idx) {as.numeric(names(idx))}
@@ -147,8 +148,14 @@ plotPred  <- function(fluctuation, nB,nSum, tB, tSum, fullLabel, genotypes, maxR
 
 
 # 1M
-genseg <-function (copyNum, mCN, label, fullLabel, dir, chrID, distThresh = 1000000 )
+genseg <-function (copyNum, mCN, label, fullLabel, dir, mergingSel, chrID, distThresh = 1000000 )
 {
+
+    # This removed the PHFs with excessive merging errors.
+    copyNum    = copyNum[ mergingSel]
+    mCN        = mCN[ mergingSel]
+    label      = label[ mergingSel]
+    fullLabel  = fullLabel[ mergingSel, ]
 
     preState = -1
     seg = c()
@@ -192,10 +199,15 @@ genseg <-function (copyNum, mCN, label, fullLabel, dir, chrID, distThresh = 1000
     tab
 }
 
-genSegFile  <- function(anaList = c("5","20","40","60", "80", "95", "p"), outdir = "./", ifload = T)
+
+
+
+# If the probability of merging error, ml, is calculated, then remove the sites with high merging error likelihood.
+# Otherwise, it does not perform screening.
+genSegFile  <- function(anaList = c("5","20","40","60", "80", "95", "p"), mlRemoveLevel = 0.04, outdir = "./", ifload = T)
 {
 
-    mSmooth <- function(pos, win=7)
+    mSmooth <- function(pos, win=5)
     {
         len=as.integer(win/2)
         startAt = max(1, pos-len)
@@ -203,6 +215,37 @@ genSegFile  <- function(anaList = c("5","20","40","60", "80", "95", "p"), outdir
         mm=median(CN[startAt:endAt])
         mm
     }
+
+    rescaleTC  <- function(tc, rcov, copyNum)
+    {
+        factor = sum(copyNum) / (2 * length(copyNum))
+        theRatio = tc / (1-tc) * factor
+        d_tc = theRatio / (1+theRatio)
+        d_tc
+    }
+
+
+
+    extract  <- function()
+    {   
+        genotypes = maxRes$genotypes
+        states    = maxRes$hidden.states
+        DOA       = maxRes$DOA
+        tc        = maxRes$tc + 0.01 
+        copyNum = genotypes[states * 2] + genotypes[states * 2 -1]
+        rcov=c()
+        for (xx in 1:12)
+        {
+            sel   = copyNum == xx
+            col   = c(col, rep(2, length(states[sel])))
+            ratio = 2/(2 + (xx -2) * tc)
+            rcov  = c(rcov, tSum[sel] * ratio/nSum[sel])
+        }
+        d_tc = rescaleTC(tc, mean(rcov), copyNum)
+        c(tc, d_tc, maxRes$DOA*2)
+    }
+
+
     if(! file.exists(outdir))
         dir.create(outdir, recursive = T)
 
@@ -211,7 +254,7 @@ genSegFile  <- function(anaList = c("5","20","40","60", "80", "95", "p"), outdir
         datFile = sprintf("res.%s.phased.chr.W.dat", eachAna)
         if(! file.exists(datFile))
             stop(sprintf("Excepting dat file : %s", datFile))
-        if(ifload == T) load(datFile)
+        if(ifload) { load(datFile)  }
         breakPoints = unmergedDepth$breakPoints
         names(breakPoints) = chroms
         clean = 0.01
@@ -219,14 +262,36 @@ genSegFile  <- function(anaList = c("5","20","40","60", "80", "95", "p"), outdir
         sel=fullLabel[, 1] %in% pos 
         fullLabel = fullLabel[sel,]
         pos=as.numeric(names(tB))
-        gwTab = as.data.frame(matrix(NA, ncol=4, nrow = 0))
-        colnames(gwTab) = c("chr", "start","end","CN")
+        gwTab = as.data.frame(matrix(NA, ncol=5, nrow = 0))
+        colnames(gwTab) = c("chr", "start","end","CN", "mCN")
+
+        if ( exists('ml') )
+        {
+            mlThresh = quantile(ml, type=1, prob = mlRemoveLevel)
+        }
+
+        pdf(file = paste(eachAna, "pdf", sep='.'), width = 18)
+
+
+        print(extract())
+
+
+
         for (idx in 1:length(chroms))
         {
             chrID = as.character(chroms[idx])
             sel = breakPoints[idx] < pos & pos <breakPoints[idx +1]
+
+
+            if ( exists('ml') )
+            {
+                plot(  tB[sel]/ tSum[sel], col = (ml[sel] < mlThresh) +1, main = idx)
+            }
+
+             
             FL=as.numeric(fullLabel[sel,])
             dim(FL)  = dim(fullLabel[sel,])
+            #gap   = 100000
             FL[,1] = as.numeric(fullLabel[,1][sel]) - breakPoints[chrID] -gap
             FL[,2] = as.numeric(fullLabel[,2][sel]) - breakPoints[chrID] -gap
             label=pos[sel] - breakPoints[chrID]
@@ -240,13 +305,22 @@ genSegFile  <- function(anaList = c("5","20","40","60", "80", "95", "p"), outdir
             CN = sapply(c(1:length(CN)), mSmooth)
             if(length(CN) > 2)
             {
-                tab = genseg(CN, mCN, label, FL, chrID=chrID, dir=outdir)
+                if(exists('ml'))
+                {
+                    tab = genseg(CN, mCN, label, FL, ml[sel] > mlThresh, chrID=chrID, dir=outdir)
+                } else 
+                {
+                    tab = genseg(CN, mCN, label, FL, CN > -1, chrID=chrID, dir=outdir)
+                }
+                #print(head(tab))
             } else
             {
                 print(sprintf("chr%d is gone", chrID ))
             }
             gwTab = rbind(gwTab, tab)
         }
+        dev.off()
+        
         gwFile = sprintf("%s/cna.%s.tumor.W.csv", outdir, eachAna) 
         print(sprintf("Generating file %s", gwFile))
         write.table(gwTab, file=gwFile, sep="\t", quote=F, row.names=F)
@@ -259,7 +333,7 @@ genSegFile  <- function(anaList = c("5","20","40","60", "80", "95", "p"), outdir
 
 
 
-produceCytoPlot  <- function(anaList = c("5","20","40","60", "80", "95", "p"), outDir = "./", col =2)
+produceCytoPlot  <- function(anaList = c("5","20","40","60", "80", "95", "p"), outDir = "./", col =2, removeLevel = 0.005)
 {
     exist = require(viewGenome)
     if(!exist)
@@ -279,13 +353,17 @@ produceCytoPlot  <- function(anaList = c("5","20","40","60", "80", "95", "p"), o
     {
         dir.create(outDir, recursive = T)
     }
-
-    for( eachAna in anaList )
+        for( eachAna in anaList )
     {
         datFile = sprintf("res.%s.phased.chr.W.dat", eachAna)
+
+ 
         if(! file.exists(datFile))
             stop(sprintf("Excepting dat file : %s", datFile))
         load(datFile)
+        
+        mlThresh = quantile(ml, type=1, prob = removeLevel)
+
         breakPoints = unmergedDepth$breakPoints
         names(breakPoints) = chroms
         clean = 0.01
@@ -319,7 +397,7 @@ produceCytoPlot  <- function(anaList = c("5","20","40","60", "80", "95", "p"), o
             CN = sapply(c(1:length(CN)), mSmooth)
             if(length(CN) > 2)
             {
-                tab = genseg(CN, mCN, label, FL, chrID = chrID, dir=outDir)
+                tab = genseg(CN, mCN, label, FL, ml[sel] > mlThresh, chrID = chrID,  dir=outDir)
                 myplot(x = tab[,2],
                        y = tab[,4], chr=chrID, col = col,
                        graybg = T, xlab = "Position", ylab = "Copy number",
@@ -334,7 +412,9 @@ produceCytoPlot  <- function(anaList = c("5","20","40","60", "80", "95", "p"), o
 }
 
 
-produceDSKY  <- function(anaList = c("5","20","40","60", "80", "95", "p"), outDir = "./", ifload = T)
+# If the probability of merging error, ml, is calculated, then remove the sites with high merging error likelihood.
+# Otherwise, it does not perform screening.
+produceDSKY  <- function(anaList = c("5","20","40","60", "80", "95", "p"), outDir = "./", removeLevel = 0.005, ifload = T)
 {
     exist = require(viewGenome)
     if(!exist)
@@ -355,7 +435,14 @@ produceDSKY  <- function(anaList = c("5","20","40","60", "80", "95", "p"), outDi
         datFile = sprintf("res.%s.phased.chr.W.dat", eachAna)
         if(! file.exists(datFile))
             stop(sprintf("Excepting dat file : %s", datFile))
-        if(ifload == T) load(datFile)
+        if(ifload) { load(datFile) }
+        
+        if(exists("ml"))
+        {
+            mlThresh = quantile(ml, type=1, prob = removeLevel)
+        }
+
+
         breakPoints = unmergedDepth$breakPoints
         names(breakPoints) = chroms
         clean = 0.01
@@ -392,7 +479,14 @@ produceDSKY  <- function(anaList = c("5","20","40","60", "80", "95", "p"), outDi
             CN = sapply(c(1:length(CN)), mSmooth)
             if(length(CN) > 2)
             {
-                tab = genseg(CN, mCN, label, FL,  chrID = as.numeric(chrID), dir=outDir)
+
+                if(exists("ml"))
+                {
+                    tab = genseg(CN, mCN, label, FL, ml[sel] > mlThresh,  chrID = as.numeric(chrID), dir=outDir)
+                } else 
+                {
+                    tab = genseg(CN, mCN, label, FL, CN > -1, chrID = as.numeric(chrID), dir=outDir)
+                }
                 plotPloidy(as.numeric(chrID), tab[, 2:5 ])
             } else
             {

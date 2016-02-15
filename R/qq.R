@@ -1,10 +1,11 @@
 require(stats)
-require(ggplot2)
-require(ggExtra)
 
 
 ggplotQQ <- function(pvs, conf=NA, yEqx=TRUE, cols=NA, pointcols=NA,colours=1, title=expression(paste("-log"[10],"QQ")), ymax=NA)
 {
+    require(ggplot2)
+    require(ggExtra)
+
     pv=pvs[!is.na(pvs)]
     if(sum(pv==0)>0)
     {
