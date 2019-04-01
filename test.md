@@ -1,3 +1,4 @@
+Overview
 
 ## Overview {: .expand}
 
@@ -15,7 +16,7 @@ DENTIST (Detecting Errors iN summary staTISTics) was designed to evaluate and qu
 
 ### Credits 
 
-The method was designed by [Wenhan Chen](mailto:uqwche11@uq.edu.au), [Zhihong Zhu](mailto:z.zhu1@uq.edu.au) and [Jian Yang](http://scholar.google.com.au/citations?user=aLuqQs8AAAAJ&hl=en). The software was implemented and has been maintained by Wenhan Chen.  The idea of the LD consistency test was originated from a previous study \[[PubMed ID: 24990607]\](https://www.ncbi.nlm.nih.gov/pubmed/24990607)\]. Webpage supports are from [Zhili Zheng](mailto:zhili.zheng@uq.edu.au).
+The method was designed by [Wenhan Chen](mailto:uqwche11@uq.edu.au), [Zhihong Zhu](mailto:z.zhu1@uq.edu.au) and [Jian Yang](http://scholar.google.com.au/citations?user=aLuqQs8AAAAJ&hl=en). The software was implemented and has been maintained by Wenhan Chen.  The idea of the LD consistency test was originated from a previous study \[[PubMed ID: 24990607]](https://www.ncbi.nlm.nih.gov/pubmed/24990607)\]. Webpage supports are from [Zhili Zheng](mailto:zhili.zheng@uq.edu.au).
 
 ### Questions and Help Requests 
 If you have any bug reports or questions please send an email to  [Wenhan Chen](mailto:uqwche11@uq.edu.au) or [Jian Yang](mailto:jian.yang@uq.edu.au).
@@ -89,3 +90,5 @@ Specifies the number of threads for parallel computing, given the tools is power
 --num-iterations 10
 Specifies the number of iterations for LD consistency test (Method). The default value is 10. 
 
+
+Describe your new note here.
